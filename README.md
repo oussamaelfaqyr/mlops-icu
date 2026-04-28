@@ -78,10 +78,6 @@ curl -X POST http://localhost:8000/predict \
      }'
 ```
 
-## 🔐 CI/CD Configuration
-To enable the automated deployment, add the following to your **GitHub Settings > Secrets**:
-- `DOCKER_USERNAME`: Your Docker Hub username.
-- `DOCKER_PASSWORD`: Your Docker Hub personal access token.
 
 ## Quality Assurance
 Execute the complete test suite:
