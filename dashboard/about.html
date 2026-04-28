@@ -1473,20 +1473,19 @@ dvc pull</div>
             <p><strong>Tests:</strong> Data schema, Unit tests, API contract</p>
             <p style="margin-top:10px;">We run <code>pytest</code> in categorized batches. Data validation checks range compliance (e.g., SpO2 > 50%), while API tests ensure the REST contract is never broken.</p>
         </div>
-    <div class="card" style="border-top:3px solid var(--green);">
-        <h3 style="color:var(--green);">Stage 3: Integration Verified</h3>
-        <p><strong>Outcome:</strong> Local Docker Health Check</p>
-        <p style="margin-top:10px;">The pipeline builds a production-ready container and executes a real <code>/health</code> 
-        request against the live service to ensure it is ready for deployment.</p>
+        <div class="card" style="border-top:3px solid var(--green);">
+            <h3 style="color:var(--green);">Stage 3: Verified Deployment</h3>
+            <p><strong>Outcome:</strong> Multi-tagged Docker Images</p>
+            <p style="margin-top:10px;">Images are tagged with the <code>git_sha</code>, <code>version</code>, and <code>latest</code>. A local health check is performed inside the CI environment before the final push.</p>
+        </div>
     </div>
-</div>
 
-<div class="callout info" style="margin-top:32px;">
-    <strong>Full CI YAML Flow:</strong>
-    <br>Push → Lint → Test → Mock Data Gen → Data Val → Light Train (< 2m) → Docker Build → Health Check (/health)
-    <br><br>
-    <em>*In the CI environment, we use a synthetic data generator (mock_generator.py) to simulate the MIMIC-IV schema, ensuring logic is verified even without access to the full private dataset.</em>
-</div>
+    <div class="callout info" style="margin-top:32px;">
+        <strong>Full CI YAML Flow:</strong>
+        <br>Push → Lint → Test → Mock Data Gen → Data Val → Light Train (< 2m) → Docker Build → Health Check (/health) → Registry Push
+        <br><br>
+        <em>*In the CI environment, we use a synthetic data generator (mock_generator.py) to simulate the MIMIC-IV schema, ensuring logic is verified even without access to the full private dataset.</em>
+    </div>
 </section>
 
 <!-- ── FOOTER ── -->
