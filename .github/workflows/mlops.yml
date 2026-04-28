@@ -55,7 +55,10 @@ jobs:
     - name: Run Light Training Pipeline
       timeout-minutes: 2
       run: |
-        # Generate sample data and run a quick training loop
+        # Generate tiny synthetic dataset for CI logic verification
+        python src/mock_generator.py
+        
+        # Run pipeline stages
         python pipeline.py --step data
         python pipeline.py --step features
         python pipeline.py --step validate

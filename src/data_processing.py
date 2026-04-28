@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import os
+import sys
 from pathlib import Path
 
 
@@ -76,9 +77,24 @@ def clean_data(data):
 
 
 if __name__ == "__main__":
-    BASE_DATA_PATH = (
+    # Priority: 1. Env Var, 2. Mock Folder (CI), 3. Hardcoded Local (User)
+    env_path = os.environ.get("MIMIC_DATA_PATH")
+    local_hardcoded = (
         r"C:\Users\21270\Desktop\mlops\physionet.org\files\mimic-iv-demo\2.2"
     )
+    mock_path = "mock_data"
+
+    if env_path and os.path.exists(env_path):
+        BASE_DATA_PATH = env_path
+    elif os.path.exists(mock_path):
+        BASE_DATA_PATH = mock_path
+    elif os.path.exists(local_hardcoded):
+        BASE_DATA_PATH = local_hardcoded
+    else:
+        print(f"[ERROR] No data found at {local_hardcoded} or {mock_path}")
+        sys.exit(1)
+
+    print(f"Using data from: {BASE_DATA_PATH}")
     data = load_data(BASE_DATA_PATH)
     df_stays, chartevents = clean_data(data)
     print(f"Loaded {len(df_stays)} stays and {len(chartevents)} vital events.")
