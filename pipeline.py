@@ -27,7 +27,7 @@ def main():
     parser.add_argument(
         "--step",
         type=str,
-        choices=["data", "features", "train", "monitor", "test", "all"],
+        choices=["data", "features", "validate", "train", "monitor", "test", "all"],
         default="all",
         help="Pipeline step to run",
     )
