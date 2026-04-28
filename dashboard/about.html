@@ -1482,7 +1482,9 @@ dvc pull</div>
 
     <div class="callout info" style="margin-top:32px;">
         <strong>Full CI YAML Flow:</strong>
-        <br>Push → Lint → Test → Data Val → Light Train (< 2m) → Docker Build → Health Check (/health) → Registry Push
+        <br>Push → Lint → Test → Mock Data Gen → Data Val → Light Train (< 2m) → Docker Build → Health Check (/health) → Registry Push
+        <br><br>
+        <em>*In the CI environment, we use a synthetic data generator (mock_generator.py) to simulate the MIMIC-IV schema, ensuring logic is verified even without access to the full private dataset.</em>
     </div>
 </section>
 
