@@ -9,8 +9,20 @@ import numpy as np
 from datetime import datetime
 from typing import List, Dict, Optional
 from pathlib import Path
+import os
+import sys
+
+# Add root to sys path to allow importing from src
+sys.path.append(os.getcwd())
+from src.sensor_simulator import ICUSensorSimulator
 
 app = FastAPI(title="Clinical ICU Deterioration API", version="1.0.0")
+
+# Use /tmp for writable data on Vercel/Serverless platforms
+if os.environ.get("VERCEL"):
+    STREAM_PATH = Path("/tmp/live_stream.csv")
+else:
+    STREAM_PATH = Path("data/live_stream.csv")
 
 # CORS — allow the dashboard to call the API
 app.add_middleware(
@@ -126,7 +138,42 @@ def predict(data: VitalInput):
         "prediction_horizon": "6-12h",
         "model_version": "v1.0",
         "timestamp": datetime.now().isoformat(),
-    }
+# --- Simulation Integration ---
+@app.get("/simulation/stream")
+def get_simulation_stream():
+    """Retrieve the latest data from the live sensor simulator."""
+    if not STREAM_PATH.exists():
+        # On Vercel, we generate history on-demand if it's missing
+        simulator = ICUSensorSimulator()
+        simulator.buffer_path = str(STREAM_PATH)
+        simulator.prefill_history(hours=24)
+
+    df = pd.read_csv(STREAM_PATH)
+    # Return last 100 events
+    return df.tail(100).to_dict(orient="records")
+
+
+@app.get("/simulation/predict")
+def predict_simulated():
+    """Run a risk assessment on the CURRENT state of the simulated patient."""
+    if not STREAM_PATH.exists():
+        get_simulation_stream()
+
+    df = pd.read_csv(STREAM_PATH)
+    vital_names = ["heart_rate", "spo2", "resp_rate", "temp", "mean_bp"]
+
+    vitals_data = {}
+    for v in vital_names:
+        v_series = df[df["vital_name"] == v]["valuenum"]
+        # Take the most recent 12 values
+        vitals_data[v] = v_series.tail(12).tolist()
+
+    # Create dummy VitalInput for the main logic
+    input_obj = VitalInput(
+        subject_id="SIM-123", stay_id="STAY-999", gender=1, anchor_age=65, vitals=vitals_data
+    )
+
+    return predict(input_obj)
 
 
 if __name__ == "__main__":
