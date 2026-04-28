@@ -1,7 +1,11 @@
+mlflow
+evidently
+streamlit
+plotly
 pytest
-httpx
-black
 flake8
-mypy
-shap
-matplotlib
+black
+Faker
+anyio
+pluggy
+hydra-core

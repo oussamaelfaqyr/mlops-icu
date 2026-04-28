@@ -32,9 +32,9 @@ ENV/
 htmlcov/
 
 # MLOps Artifacts (Handled by DVC or MLflow)
-data/*.csv
-data/*.gz
-models/*.joblib
+# data/*.csv
+# data/*.gz
+# models/*.joblib
 mlruns/
 mlflow.db
 
