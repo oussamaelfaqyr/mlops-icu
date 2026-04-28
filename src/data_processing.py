@@ -3,6 +3,7 @@ import numpy as np
 import os
 from pathlib import Path
 
+
 def load_data(base_path):
     """
     Loads necessary CSV files from the MIMIC-IV demo directory.
@@ -12,66 +13,76 @@ def load_data(base_path):
     icu_path = base_path / "icu"
 
     print("Loading data...")
-    patients = pd.read_csv(hosp_path / "patients.csv.gz", compression='gzip')
-    admissions = pd.read_csv(hosp_path / "admissions.csv.gz", compression='gzip')
-    icustays = pd.read_csv(icu_path / "icustays.csv.gz", compression='gzip')
-    
+    patients = pd.read_csv(hosp_path / "patients.csv.gz", compression="gzip")
+    admissions = pd.read_csv(hosp_path / "admissions.csv.gz", compression="gzip")
+    icustays = pd.read_csv(icu_path / "icustays.csv.gz", compression="gzip")
+
     # Selecting core vitals from chartevents
     # In MIMIC-IV, typical itemids for vitals:
     # Heart Rate: 220045, SpO2: 220277, Resp Rate: 220210, Temp: 223762, MAP: 220052
     vital_itemids = [220045, 220277, 220210, 223762, 220052]
-    
+
     # We load chartevents in chunks if it's large, but demo is small.
-    chartevents = pd.read_csv(icu_path / "chartevents.csv.gz", compression='gzip')
-    chartevents = chartevents[chartevents['itemid'].isin(vital_itemids)]
+    chartevents = pd.read_csv(icu_path / "chartevents.csv.gz", compression="gzip")
+    chartevents = chartevents[chartevents["itemid"].isin(vital_itemids)]
 
     return {
-        'patients': patients,
-        'admissions': admissions,
-        'icustays': icustays,
-        'chartevents': chartevents
+        "patients": patients,
+        "admissions": admissions,
+        "icustays": icustays,
+        "chartevents": chartevents,
     }
+
 
 def clean_data(data):
     """
     Basic cleaning and merging.
     """
-    patients = data['patients']
-    admissions = data['admissions']
-    icustays = data['icustays']
-    chartevents = data['chartevents']
+    patients = data["patients"]
+    admissions = data["admissions"]
+    icustays = data["icustays"]
+    chartevents = data["chartevents"]
 
     # Merge icustays with patients for age/gender
-    df_stays = icustays.merge(patients[['subject_id', 'gender', 'anchor_age']], on='subject_id', how='left')
-    
+    df_stays = icustays.merge(
+        patients[["subject_id", "gender", "anchor_age"]], on="subject_id", how="left"
+    )
+
     # Convert timestamps
-    df_stays['intime'] = pd.to_datetime(df_stays['intime'])
-    df_stays['outtime'] = pd.to_datetime(df_stays['outtime'])
-    chartevents['charttime'] = pd.to_datetime(chartevents['charttime'])
+    df_stays["intime"] = pd.to_datetime(df_stays["intime"])
+    df_stays["outtime"] = pd.to_datetime(df_stays["outtime"])
+    chartevents["charttime"] = pd.to_datetime(chartevents["charttime"])
 
     # Map itemids to names
     item_map = {
-        220045: 'heart_rate',
-        220277: 'spo2',
-        220210: 'resp_rate',
-        223762: 'temp',
-        220052: 'mean_bp'
+        220045: "heart_rate",
+        220277: "spo2",
+        220210: "resp_rate",
+        223762: "temp",
+        220052: "mean_bp",
     }
-    chartevents['vital_name'] = chartevents['itemid'].map(item_map)
+    chartevents["vital_name"] = chartevents["itemid"].map(item_map)
 
     # Filter only vitals that fall within ICU stay window
-    chartevents = chartevents.merge(df_stays[['stay_id', 'intime', 'outtime']], on='stay_id', how='left')
-    chartevents = chartevents[(chartevents['charttime'] >= chartevents['intime']) & 
-                              (chartevents['charttime'] <= chartevents['outtime'])]
+    chartevents = chartevents.merge(
+        df_stays[["stay_id", "intime", "outtime"]], on="stay_id", how="left"
+    )
+    chartevents = chartevents[
+        (chartevents["charttime"] >= chartevents["intime"])
+        & (chartevents["charttime"] <= chartevents["outtime"])
+    ]
 
     return df_stays, chartevents
 
+
 if __name__ == "__main__":
-    BASE_DATA_PATH = r"C:\Users\21270\Desktop\mlops\physionet.org\files\mimic-iv-demo\2.2"
+    BASE_DATA_PATH = (
+        r"C:\Users\21270\Desktop\mlops\physionet.org\files\mimic-iv-demo\2.2"
+    )
     data = load_data(BASE_DATA_PATH)
     df_stays, chartevents = clean_data(data)
     print(f"Loaded {len(df_stays)} stays and {len(chartevents)} vital events.")
-    
+
     # Save processed for feature engineering
     os.makedirs("data", exist_ok=True)
     df_stays.to_csv("data/stays_cleaned.csv", index=False)

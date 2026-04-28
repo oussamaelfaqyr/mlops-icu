@@ -39,6 +39,7 @@ STATIC_DIR = DASHBOARD_DIR / "static"
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
+
 @app.get("/")
 def serve_dashboard():
     """Serve the ICU monitoring dashboard."""
@@ -46,6 +47,7 @@ def serve_dashboard():
     if index_path.exists():
         return FileResponse(str(index_path))
     return {"message": "Dashboard not found. API is running."}
+
 
 @app.get("/about")
 def serve_about():
@@ -55,14 +57,16 @@ def serve_about():
         return FileResponse(str(about_path))
     return {"message": "Documentation page not found."}
 
+
 # --- API Endpoints ---
 @app.get("/health")
 def health():
     return {
         "status": "ready",
         "model_loaded": model is not None,
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
     }
+
 
 class VitalInput(BaseModel):
     subject_id: str
@@ -70,6 +74,7 @@ class VitalInput(BaseModel):
     gender: int
     anchor_age: int
     vitals: Dict[str, List[float]]
+
 
 class PredictionResponse(BaseModel):
     patient_id: str
@@ -79,33 +84,40 @@ class PredictionResponse(BaseModel):
     model_version: str
     timestamp: str
 
+
 @app.post("/predict", response_model=PredictionResponse)
 def predict(data: VitalInput):
     if model is None:
         raise HTTPException(status_code=500, detail="Model artifacts not found")
-    
-    features = {'gender': data.gender, 'anchor_age': data.anchor_age}
-    vital_names = ['heart_rate', 'spo2', 'resp_rate', 'temp', 'mean_bp']
-    
+
+    features = {"gender": data.gender, "anchor_age": data.anchor_age}
+    vital_names = ["heart_rate", "spo2", "resp_rate", "temp", "mean_bp"]
+
     for v in vital_names:
         values = data.vitals.get(v, [])
         if values:
             series = pd.Series(values)
-            features[f'{v}_mean'] = series.mean()
-            features[f'{v}_std'] = series.std() if len(series) > 1 else 0
-            features[f'{v}_trend'] = np.polyfit(np.arange(len(series)), series.values, 1)[0] if len(series) > 1 else 0
+            features[f"{v}_mean"] = series.mean()
+            features[f"{v}_std"] = series.std() if len(series) > 1 else 0
+            features[f"{v}_trend"] = (
+                np.polyfit(np.arange(len(series)), series.values, 1)[0]
+                if len(series) > 1
+                else 0
+            )
         else:
-            features[f'{v}_mean'] = 0
-            features[f'{v}_std'] = 0
-            features[f'{v}_trend'] = 0
+            features[f"{v}_mean"] = 0
+            features[f"{v}_std"] = 0
+            features[f"{v}_trend"] = 0
 
     df_input = pd.DataFrame([features]).reindex(columns=feature_columns, fill_value=0)
-    
+
     risk_score = float(model.predict_proba(df_input)[0, 1])
-    
+
     risk_level = "LOW"
-    if risk_score > 0.7: risk_level = "HIGH"
-    elif risk_score > 0.4: risk_level = "MODERATE"
+    if risk_score > 0.7:
+        risk_level = "HIGH"
+    elif risk_score > 0.4:
+        risk_level = "MODERATE"
 
     return {
         "patient_id": data.subject_id,
@@ -113,9 +125,11 @@ def predict(data: VitalInput):
         "risk_level": risk_level,
         "prediction_horizon": "6-12h",
         "model_version": "v1.0",
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
     }
+
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)
