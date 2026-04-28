@@ -108,22 +108,25 @@ def predict(data: VitalInput):
     for v in vital_names:
         values = data.vitals.get(v, [])
         if values:
-            series = pd.Series(values)
-            features[f"{v}_mean"] = series.mean()
-            features[f"{v}_std"] = series.std() if len(series) > 1 else 0
-            features[f"{v}_trend"] = (
-                np.polyfit(np.arange(len(series)), series.values, 1)[0]
-                if len(series) > 1
-                else 0
+            v_arr = np.array(values)
+            features[f"{v}_mean"] = float(np.mean(v_arr))
+            features[f"{v}_std"] = float(np.std(v_arr)) if len(v_arr) > 1 else 0.0
+            features[f"{v}_trend"] = float(
+                np.polyfit(np.arange(len(v_arr)), v_arr, 1)[0]
+                if len(v_arr) > 1
+                else 0.0
             )
         else:
-            features[f"{v}_mean"] = 0
-            features[f"{v}_std"] = 0
-            features[f"{v}_trend"] = 0
+            features[f"{v}_mean"] = 0.0
+            features[f"{v}_std"] = 0.0
+            features[f"{v}_trend"] = 0.0
 
-    df_input = pd.DataFrame([features]).reindex(columns=feature_columns, fill_value=0)
+    # Build input array for DMatrix (aligned with feature_columns order)
+    input_list = [features.get(col, 0.0) for col in feature_columns]
+    dmat = xgb.DMatrix([input_list], feature_names=feature_columns)
 
-    risk_score = float(model.predict_proba(df_input)[0, 1])
+    # Inference
+    risk_score = float(model.predict(dmat)[0])
 
     risk_level = "LOW"
     if risk_score > 0.7:
@@ -142,6 +145,8 @@ def predict(data: VitalInput):
 
 
 # --- Simulation Integration ---
+import csv
+
 @app.get("/simulation/stream")
 def get_simulation_stream():
     """Retrieve the latest data from the live sensor simulator."""
@@ -151,9 +156,17 @@ def get_simulation_stream():
         simulator.buffer_path = str(STREAM_PATH)
         simulator.prefill_history(hours=24)
 
-    df = pd.read_csv(STREAM_PATH)
+    # Use native csv to read to avoid pandas dependency
+    data = []
+    with open(STREAM_PATH, "r") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            # Convert values to float where needed
+            row["valuenum"] = float(row["valuenum"])
+            data.append(row)
+    
     # Return last 100 events
-    return df.tail(100).to_dict(orient="records")
+    return data[-100:]
 
 
 @app.get("/simulation/predict")
@@ -162,22 +175,23 @@ def predict_simulated():
     if not STREAM_PATH.exists():
         get_simulation_stream()
 
-    df = pd.read_csv(STREAM_PATH)
     vital_names = ["heart_rate", "spo2", "resp_rate", "temp", "mean_bp"]
+    vitals_data = {v: [] for v in vital_names}
 
-    vitals_data = {}
+    with open(STREAM_PATH, "r") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            v_name = row["vital_name"]
+            if v_name in vitals_data:
+                vitals_data[v_name].append(float(row["valuenum"]))
+
+    # Take most recent 12 values
     for v in vital_names:
-        v_series = df[df["vital_name"] == v]["valuenum"]
-        # Take the most recent 12 values
-        vitals_data[v] = v_series.tail(12).tolist()
+        vitals_data[v] = vitals_data[v][-12:]
 
-    # Create dummy VitalInput for the main logic
+    # Create dummy VitalInput
     input_obj = VitalInput(
-        subject_id="SIM-123",
-        stay_id="STAY-999",
-        gender=1,
-        anchor_age=65,
-        vitals=vitals_data,
+        subject_id="SIM-123", stay_id="STAY-999", gender=1, anchor_age=65, vitals=vitals_data
     )
 
     return predict(input_obj)

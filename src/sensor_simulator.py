@@ -1,7 +1,7 @@
-import pandas as pd
 import numpy as np
 import time
 import os
+import csv
 from datetime import datetime, timedelta
 
 
@@ -22,28 +22,28 @@ class ICUSensorSimulator:
         if not self.buffer_path.startswith("/tmp"):
             os.makedirs(os.path.dirname(self.buffer_path), exist_ok=True)
 
-        # Initialize buffer
-
     def prefill_history(self, hours=24):
         """Generates back-dated history to ensure the pipeline has enough data for windows."""
         print(f"Prefilling {hours} hours of history...")
         now = datetime.now()
-        data = []
-        for h in range(hours * 12):  # 5-min intervals
-            timestamp = (now - timedelta(minutes=h * 5)).strftime("%Y-%m-%d %H:%M:%S")
-            self.simulate_drift()
-            for vital, val in self.current_vitals.items():
-                data.append(
-                    {
+        
+        # Use native csv writer
+        with open(self.buffer_path, "w", newline="") as f:
+            fieldnames = ["timestamp", "vital_name", "valuenum", "subject_id"]
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            
+            # Generate history (reversed for sorted output)
+            for h in range(hours * 12, 0, -1):
+                timestamp = (now - timedelta(minutes=h * 5)).strftime("%Y-%m-%d %H:%M:%S")
+                self.simulate_drift()
+                for vital, val in self.current_vitals.items():
+                    writer.writerow({
                         "timestamp": timestamp,
                         "vital_name": vital,
                         "valuenum": round(float(val), 2),
                         "subject_id": self.patient_id,
-                    }
-                )
-
-        df_hist = pd.DataFrame(data).sort_values("timestamp")
-        df_hist.to_csv(self.buffer_path, index=False)
+                    })
         print("Prefill complete.")
 
     def simulate_drift(self):
@@ -73,19 +73,16 @@ class ICUSensorSimulator:
 
     def log_to_stream(self):
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        new_data = []
-        for vital, val in self.current_vitals.items():
-            new_data.append(
-                {
+        with open(self.buffer_path, "a", newline="") as f:
+            fieldnames = ["timestamp", "vital_name", "valuenum", "subject_id"]
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            for vital, val in self.current_vitals.items():
+                writer.writerow({
                     "timestamp": timestamp,
                     "vital_name": vital,
                     "valuenum": round(float(val), 2),
                     "subject_id": self.patient_id,
-                }
-            )
-
-        df_new = pd.DataFrame(new_data)
-        df_new.to_csv(self.buffer_path, mode="a", header=False, index=False)
+                })
         print(
             f"[{timestamp}] Logged vitals for {self.patient_id}: HR={round(self.current_vitals['heart_rate'],1)} SpO2={round(self.current_vitals['spo2'],1)}"
         )
@@ -97,9 +94,6 @@ class ICUSensorSimulator:
             while True:
                 self.simulate_drift()
                 self.log_to_stream()
-
-                # Maintain buffer size (keep last 1000 lines approx)
-                # To be efficient, we'd use a different storage, but for simulation CSV is fine
                 time.sleep(interval_sec)
         except KeyboardInterrupt:
             print("\nSimulation stopped.")
