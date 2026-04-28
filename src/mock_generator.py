@@ -45,7 +45,7 @@ def create_mock_mimic():
         (1001, 3001, "2170-01-01 10:00:00"),
         (1002, 3002, "2170-02-01 10:00:00"),
     ]:
-        base_time = datetime.strptime(start, "%Y-%m-%d %H:%M:%00")
+        base_time = datetime.strptime(start, "%Y-%m-%d %H:%M:%S")
         for h in range(120):
             t = base_time + timedelta(hours=h)
             # Add the 5 core vitals
