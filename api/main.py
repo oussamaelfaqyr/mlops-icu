@@ -138,6 +138,9 @@ def predict(data: VitalInput):
         "prediction_horizon": "6-12h",
         "model_version": "v1.0",
         "timestamp": datetime.now().isoformat(),
+    }
+
+
 # --- Simulation Integration ---
 @app.get("/simulation/stream")
 def get_simulation_stream():
@@ -170,7 +173,11 @@ def predict_simulated():
 
     # Create dummy VitalInput for the main logic
     input_obj = VitalInput(
-        subject_id="SIM-123", stay_id="STAY-999", gender=1, anchor_age=65, vitals=vitals_data
+        subject_id="SIM-123",
+        stay_id="STAY-999",
+        gender=1,
+        anchor_age=65,
+        vitals=vitals_data,
     )
 
     return predict(input_obj)
