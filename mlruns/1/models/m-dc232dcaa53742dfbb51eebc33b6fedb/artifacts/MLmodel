@@ -1,0 +1,22 @@
+artifact_path: file:///C:/Users/21270/Desktop/mlops/mlops-icu-project/mlruns/1/models/m-dc232dcaa53742dfbb51eebc33b6fedb/artifacts
+flavors:
+  python_function:
+    data: model.ubj
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.xgboost
+    python_version: 3.11.9
+  xgboost:
+    code: null
+    data: model.ubj
+    model_class: xgboost.sklearn.XGBClassifier
+    model_format: ubj
+    xgb_version: 3.2.0
+mlflow_version: 3.11.1
+model_id: m-dc232dcaa53742dfbb51eebc33b6fedb
+model_size_bytes: 230867
+model_uuid: m-dc232dcaa53742dfbb51eebc33b6fedb
+prompts: null
+run_id: 4d99134babae4afbad331ad01d74c358
+utc_time_created: '2026-04-27 19:19:36.859050'

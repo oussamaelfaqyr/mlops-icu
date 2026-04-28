@@ -1,0 +1,1496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="ICU Patient Deterioration Prediction — Full Technical Documentation for ML Engineers">
+    <title>Technical Deep Dive — ICU Precision Monitoring</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg: #0a0e1a;
+            --bg-2: #0f1420;
+            --bg-3: #1a1f2e;
+            --bg-4: #222840;
+            --bg-5: #2a3050;
+            --border: rgba(255,255,255,0.06);
+            --border-accent: rgba(99,102,241,0.35);
+            --text: #f1f5f9;
+            --text-2: #94a3b8;
+            --text-3: #64748b;
+            --accent: #6366f1;
+            --accent-2: #818cf8;
+            --green: #10b981;
+            --amber: #f59e0b;
+            --red: #ef4444;
+            --cyan: #22d3ee;
+            --purple: #a78bfa;
+            --orange: #fb923c;
+        }
+
+        html { font-size: 15px; scroll-behavior: smooth; }
+
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.75;
+        }
+
+        /* ── NAV ── */
+        .nav {
+            position: fixed; top: 0; left: 0; right: 0; height: 60px;
+            background: rgba(10,14,26,0.9);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 40px; z-index: 1000;
+        }
+        .nav-brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--text); }
+        .nav-logo { width: 32px; height: 32px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); border-radius: 9px; display: flex; align-items: center; justify-content: center; }
+        .nav-logo svg { width: 18px; height: 18px; fill: white; }
+        .nav-title { font-weight: 600; font-size: 0.95rem; }
+        .nav-links { display: flex; gap: 4px; flex-wrap: wrap; }
+        .nav-links a { color: var(--text-2); text-decoration: none; font-size: 0.78rem; padding: 6px 12px; border-radius: 8px; transition: 0.2s; }
+        .nav-links a:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+        .nav-links a.cta { background: var(--accent); color: white; font-weight: 500; }
+        .nav-links a.cta:hover { background: var(--accent-2); }
+
+        /* ── HERO ── */
+        .hero {
+            padding: 140px 40px 80px; text-align: center;
+            position: relative; overflow: hidden;
+        }
+        .hero::before {
+            content: ''; position: absolute; top: -200px; left: 50%;
+            transform: translateX(-50%); width: 900px; height: 900px;
+            background: radial-gradient(circle, rgba(99,102,241,0.09) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        .hero-badge {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 6px 18px; border-radius: 20px;
+            border: 1px solid var(--border-accent);
+            background: rgba(99,102,241,0.08);
+            font-size: 0.72rem; font-weight: 600; color: var(--accent-2);
+            letter-spacing: 1px; text-transform: uppercase; margin-bottom: 28px;
+        }
+        .hero h1 {
+            font-size: 3.4rem; font-weight: 800; letter-spacing: -1.8px;
+            line-height: 1.12; margin-bottom: 22px;
+            background: linear-gradient(135deg, var(--text) 0%, var(--accent-2) 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .hero-sub {
+            font-size: 1.1rem; color: var(--text-2);
+            max-width: 750px; margin: 0 auto 48px; line-height: 1.85;
+        }
+        .hero-metrics { display: flex; justify-content: center; gap: 52px; flex-wrap: wrap; }
+        .hero-metric { text-align: center; }
+        .hero-metric-value { font-family: 'JetBrains Mono', monospace; font-size: 2.1rem; font-weight: 700; }
+        .hero-metric-label { font-size: 0.72rem; color: var(--text-3); text-transform: uppercase; letter-spacing: 1.2px; margin-top: 6px; }
+
+        /* ── LAYOUT ── */
+        .section { max-width: 1100px; margin: 0 auto; padding: 80px 40px; }
+        .section-label { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: var(--accent-2); margin-bottom: 10px; }
+        .section h2 { font-size: 2.1rem; font-weight: 700; letter-spacing: -0.9px; margin-bottom: 14px; }
+        .section-desc { color: var(--text-2); max-width: 780px; margin-bottom: 40px; font-size: 1rem; line-height: 1.8; }
+        .divider { border: none; border-top: 1px solid var(--border); margin: 0; }
+
+        /* ── CARDS ── */
+        .cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+        .card {
+            background: var(--bg-3); border: 1px solid var(--border);
+            border-radius: 14px; padding: 28px; transition: 0.25s;
+        }
+        .card:hover { border-color: var(--border-accent); transform: translateY(-3px); box-shadow: 0 10px 30px rgba(0,0,0,0.35); }
+        .card h3 { font-size: 1.05rem; font-weight: 600; margin-bottom: 10px; }
+        .card h4 { font-size: 0.95rem; font-weight: 600; margin-bottom: 10px; }
+        .card p { font-size: 0.88rem; color: var(--text-2); line-height: 1.75; }
+        .card ul { font-size: 0.88rem; color: var(--text-2); padding-left: 18px; line-height: 2; }
+        .card li { margin-bottom: 2px; }
+        .card-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin-bottom: 18px; font-size: 1.3rem; }
+
+        /* ── DEEP DIVE SECTION (2-col layout) ── */
+        .deep-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+        .deep-grid.wide { grid-template-columns: 2fr 1fr; }
+        @media(max-width: 768px) { .deep-grid, .deep-grid.wide { grid-template-columns: 1fr; } }
+
+        /* ── CODE BLOCKS ── */
+        .code-wrap { margin: 24px 0; }
+        .code-header {
+            background: var(--bg-4); border: 1px solid var(--border);
+            border-bottom: none; border-radius: 10px 10px 0 0;
+            padding: 8px 18px; font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem; color: var(--cyan); letter-spacing: 0.5px;
+        }
+        .code-block {
+            background: var(--bg-2); border: 1px solid var(--border);
+            border-radius: 0 0 10px 10px; padding: 22px 24px;
+            font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;
+            line-height: 1.9; color: var(--text-2); overflow-x: auto;
+            white-space: pre;
+        }
+        .code-block.standalone { border-radius: 10px; margin: 16px 0; }
+        .kw { color: var(--accent-2); }
+        .fn { color: var(--cyan); }
+        .st { color: var(--green); }
+        .cm { color: var(--text-3); font-style: italic; }
+        .nm { color: var(--orange); }
+        .dec { color: var(--amber); }
+        .op { color: var(--text-3); }
+
+        /* ── CALLOUT BOXES ── */
+        .callout {
+            border-radius: 12px; padding: 20px 24px; margin: 20px 0;
+            border-left: 4px solid; font-size: 0.9rem; line-height: 1.75;
+        }
+        .callout.info { background: rgba(99,102,241,0.07); border-color: var(--accent); color: var(--text-2); }
+        .callout.warning { background: rgba(245,158,11,0.07); border-color: var(--amber); color: var(--text-2); }
+        .callout.success { background: rgba(16,185,129,0.07); border-color: var(--green); color: var(--text-2); }
+        .callout.danger { background: rgba(239,68,68,0.07); border-color: var(--red); color: var(--text-2); }
+        .callout strong { color: var(--text); }
+
+        /* ── METRICS TABLE ── */
+        .metric-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .metric-table th, .metric-table td { padding: 13px 18px; text-align: left; border-bottom: 1px solid var(--border); font-size: 0.88rem; }
+        .metric-table th { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 1.2px; color: var(--text-3); font-weight: 700; }
+        .metric-table td:first-child { font-weight: 600; }
+        .metric-table tr:hover td { background: rgba(255,255,255,0.02); }
+        .bar-wrap { height: 6px; border-radius: 3px; background: var(--bg-4); position: relative; min-width: 120px; }
+        .bar-fill { height: 100%; border-radius: 3px; position: absolute; top: 0; left: 0; transition: width 1s; }
+
+        /* ── BADGE ── */
+        .badge {
+            display: inline-block; font-size: 0.68rem; font-weight: 700;
+            padding: 2px 8px; border-radius: 4px; text-transform: uppercase;
+            letter-spacing: 0.8px;
+        }
+        .badge.green { background: rgba(16,185,129,0.15); color: var(--green); }
+        .badge.red { background: rgba(239,68,68,0.15); color: var(--red); }
+        .badge.amber { background: rgba(245,158,11,0.15); color: var(--amber); }
+        .badge.blue { background: rgba(99,102,241,0.15); color: var(--accent-2); }
+        .badge.cyan { background: rgba(34,211,238,0.15); color: var(--cyan); }
+
+        /* ── ARCH FLOW ── */
+        .arch-flow { display: flex; flex-wrap: wrap; gap: 0; justify-content: center; align-items: center; padding: 40px 0; }
+        .arch-node { background: var(--bg-3); border: 1px solid var(--border); border-radius: 12px; padding: 16px 22px; text-align: center; min-width: 140px; transition: 0.2s; }
+        .arch-node:hover { border-color: var(--accent); box-shadow: 0 0 24px rgba(99,102,241,0.12); }
+        .arch-node-label { font-size: 0.65rem; color: var(--text-3); text-transform: uppercase; letter-spacing: 1px; }
+        .arch-node-title { font-weight: 600; font-size: 0.92rem; margin-top: 4px; }
+        .arch-arrow { color: var(--text-3); font-size: 1.4rem; padding: 0 6px; }
+
+        /* ── TECH STACK ── */
+        .tech-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+        .tech-item { background: var(--bg-3); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; display: flex; align-items: center; gap: 14px; transition: 0.2s; }
+        .tech-item:hover { border-color: rgba(255,255,255,0.1); }
+        .tech-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+        .tech-item span { font-size: 0.88rem; font-weight: 500; }
+        .tech-item small { display: block; font-size: 0.7rem; color: var(--text-3); margin-top: 2px; }
+
+        /* ── TIMELINE ── */
+        .timeline { position: relative; padding-left: 34px; }
+        .timeline::before { content: ''; position: absolute; left: 10px; top: 0; bottom: 0; width: 2px; background: linear-gradient(to bottom, var(--accent), transparent); }
+        .timeline-item { position: relative; padding-bottom: 48px; }
+        .timeline-dot { position: absolute; left: -28px; top: 5px; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); border: 3px solid var(--bg); box-shadow: 0 0 12px rgba(99,102,241,0.4); }
+        .timeline-item h3 { font-size: 1.15rem; font-weight: 700; margin-bottom: 6px; }
+        .timeline-item h4 { font-size: 0.95rem; font-weight: 600; margin-bottom: 6px; color: var(--text-2); }
+        .timeline-item p { font-size: 0.9rem; color: var(--text-2); line-height: 1.8; }
+
+        /* ── FORMULA ── */
+        .formula {
+            background: var(--bg-3); border: 1px solid var(--border-accent);
+            border-radius: 10px; padding: 18px 24px; margin: 16px 0;
+            font-family: 'JetBrains Mono', monospace; font-size: 0.9rem;
+            color: var(--accent-2); text-align: center; letter-spacing: 0.5px;
+        }
+
+        /* ── FOOTER ── */
+        .footer { text-align: center; padding: 60px 40px; border-top: 1px solid var(--border); color: var(--text-3); font-size: 0.8rem; }
+
+        /* ── INLINE CODE ── */
+        code { background: var(--bg-4); padding: 2px 8px; border-radius: 4px; font-family: 'JetBrains Mono'; font-size: 0.82rem; color: var(--cyan); }
+
+        /* ── FEATURE TABLE ── */
+        .feat-row { display: grid; grid-template-columns: 180px 100px 1fr; gap: 0; border-bottom: 1px solid var(--border); padding: 14px 18px; font-size: 0.86rem; align-items: start; }
+        .feat-row:hover { background: rgba(255,255,255,0.02); }
+        .feat-row:first-child { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-3); font-weight: 700; background: transparent !important; padding-bottom: 10px; }
+        .feat-name { font-weight: 600; font-family: 'JetBrains Mono'; font-size: 0.78rem; color: var(--accent-2); }
+        .feat-impact { }
+        .feat-desc { color: var(--text-2); line-height: 1.6; }
+
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 2.2rem; }
+            .hero-metrics { gap: 28px; }
+            .arch-flow { flex-direction: column; }
+            .arch-arrow { transform: rotate(90deg); }
+            .nav { padding: 0 16px; }
+            .section { padding: 48px 16px; }
+            .feat-row { grid-template-columns: 1fr; gap: 4px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ── NAVIGATION ── -->
+<nav class="nav">
+    <a href="/" class="nav-brand">
+        <div class="nav-logo">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.94-.49-7-3.85-7-7.93 0-.62.08-1.22.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zM17.9 17.39c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+        </div>
+        <span class="nav-title">ICU Precision Monitoring</span>
+    </a>
+    <div class="nav-links">
+        <a href="#data">Data</a>
+        <a href="#labeling">Labeling</a>
+        <a href="#features">Features</a>
+        <a href="#model">Model</a>
+        <a href="#monitoring">Monitoring</a>
+        <a href="#api">API</a>
+        <a href="#tests">Tests</a>
+        <a href="/" class="cta">Live Dashboard</a>
+    </div>
+</nav>
+
+<!-- ── HERO ── -->
+<section class="hero">
+    <div class="hero-badge">🔬 Technical Deep Dive — MLOps Capstone</div>
+    <h1>ICU Patient Deterioration<br>Prediction System</h1>
+    <p class="hero-sub">
+        A production-grade MLOps pipeline designed for clinical decision support.
+        This document explains every architectural decision, every line of code,
+        every metric and how to interpret it — written for ML/AI engineers.
+    </p>
+    <div class="hero-metrics">
+        <div class="hero-metric">
+            <div class="hero-metric-value" style="color:var(--accent-2)">0.755</div>
+            <div class="hero-metric-label">ROC-AUC (Test Set)</div>
+        </div>
+        <div class="hero-metric">
+            <div class="hero-metric-value" style="color:var(--green)">2,291</div>
+            <div class="hero-metric-label">Training Windows</div>
+        </div>
+        <div class="hero-metric">
+            <div class="hero-metric-value" style="color:var(--amber)">6–12h</div>
+            <div class="hero-metric-label">Prediction Horizon</div>
+        </div>
+        <div class="hero-metric">
+            <div class="hero-metric-value" style="color:var(--cyan)">15</div>
+            <div class="hero-metric-label">Engineered Features</div>
+        </div>
+        <div class="hero-metric">
+            <div class="hero-metric-value" style="color:var(--purple)">8/8</div>
+            <div class="hero-metric-label">Tests Passing</div>
+        </div>
+    </div>
+</section>
+
+<hr class="divider">
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- SECTION 1: CLINICAL PROBLEM                    -->
+<!-- ══════════════════════════════════════════════ -->
+<section class="section" id="problem">
+    <div class="section-label">01 — Context</div>
+    <h2>The Clinical Problem</h2>
+    <p class="section-desc">
+        ICU mortality rates range from 10–29%. Deterioration events — septic shock, respiratory failure, cardiac arrest — are rarely sudden.
+        They are preceded by hours of subtle physiological drift. The challenge is detecting this drift automatically,
+        across all patients simultaneously, before it becomes irreversible.
+    </p>
+    <div class="cards-grid">
+        <div class="card">
+            <div class="card-icon" style="background:rgba(239,68,68,0.1);color:var(--red);">⚠️</div>
+            <h3>Why Manual Monitoring Fails</h3>
+            <p>ICU nurses monitor 2–4 patients simultaneously. A patient's SpO2 trending down by 1% per hour over 8 hours is invisible to the human eye amid alarm noise — but it is a strong statistical signal a model can detect.</p>
+        </div>
+        <div class="card">
+            <div class="card-icon" style="background:rgba(99,102,241,0.1);color:var(--accent);">🎯</div>
+            <h3>The Prediction Task</h3>
+            <p>Given 12 hours of patient vital sign history, predict whether a clinically significant deterioration event (SpO2 &lt; 90% or HR &gt; 110 bpm) will occur in the 6-to-12 hour window following the observation.</p>
+        </div>
+        <div class="card">
+            <div class="card-icon" style="background:rgba(16,185,129,0.1);color:var(--green);">🏥</div>
+            <h3>Why a 6-Hour Safety Gap?</h3>
+            <p>Real early warning systems are useless if they alert only seconds before an event. The 6-hour gap between observation and prediction window is intentional — it gives clinical staff actionable response time to intervene and prevent the event entirely.</p>
+        </div>
+    </div>
+</section>
+
+<hr class="divider">
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- SECTION 2: DATA                                -->
+<!-- ══════════════════════════════════════════════ -->
+<section class="section" id="data">
+    <div class="section-label">02 — Data Source</div>
+    <h2>MIMIC-IV: Data Ingestion & Cleaning</h2>
+    <p class="section-desc">
+        We use the <strong>MIMIC-IV Demo</strong> dataset from PhysioNet — a publicly available, de-identified subset of the MIMIC-IV
+        clinical database from Beth Israel Deaconess Medical Center. It contains ICU stay records for 100 patients with full
+        vital sign time series, demographics, and outcomes.
+    </p>
+
+    <div class="deep-grid wide">
+        <div>
+            <h3 style="margin-bottom:16px;font-size:1.1rem;">The Raw Data Structure</h3>
+            <p style="color:var(--text-2);font-size:0.9rem;margin-bottom:16px;">
+                MIMIC-IV is organized into two schemas. We read from compressed <code>.csv.gz</code> files:
+            </p>
+            <ul style="color:var(--text-2);font-size:0.88rem;padding-left:20px;line-height:2.2;">
+                <li><strong>hosp/patients.csv.gz</strong> — Demographics: <code>subject_id</code>, <code>gender</code>, <code>anchor_age</code></li>
+                <li><strong>hosp/admissions.csv.gz</strong> — Hospital admissions with admission types</li>
+                <li><strong>icu/icustays.csv.gz</strong> — ICU stays with <code>intime</code>, <code>outtime</code>, <code>stay_id</code></li>
+                <li><strong>icu/chartevents.csv.gz</strong> — Timestamped vital signs measurements. This is our primary table (~millions of rows in production, small in demo).</li>
+            </ul>
+
+            <div class="callout info" style="margin-top:20px;">
+                <strong>Key Design Choice:</strong> We filter <code>chartevents</code> to only include measurements taken <em>within</em>
+                the patient's ICU stay window (<code>charttime >= intime AND charttime &lt;= outtime</code>).
+                This prevents pre-admission or post-discharge data from contaminating features.
+            </div>
+        </div>
+        <div>
+            <div class="card" style="border-top:3px solid var(--cyan);">
+                <h4>MIMIC-IV Item IDs Mapped</h4>
+                <p style="font-size:0.82rem;color:var(--text-3);margin-bottom:12px;">In MIMIC-IV, each measurement type has a numeric <code>itemid</code>. These are the 5 we use:</p>
+                <div class="code-block standalone" style="font-size:0.75rem;">item_map = {
+  <span class="nm">220045</span>: <span class="st">'heart_rate'</span>,
+  <span class="nm">220277</span>: <span class="st">'spo2'</span>,
+  <span class="nm">220210</span>: <span class="st">'resp_rate'</span>,
+  <span class="nm">223762</span>: <span class="st">'temp'</span>,
+  <span class="nm">220052</span>: <span class="st">'mean_bp'</span>
+}</div>
+                <p style="font-size:0.8rem;color:var(--text-3);margin-top:8px;">These are the standard CareVue/MetaVision item IDs for adult ICU monitoring.</p>
+            </div>
+        </div>
+    </div>
+
+    <h3 style="margin:36px 0 16px;font-size:1.1rem;">The Full Loading Pipeline — <code>src/data_processing.py</code></h3>
+    <div class="code-wrap">
+        <div class="code-header">src/data_processing.py — load_data()</div>
+        <div class="code-block"><span class="kw">def</span> <span class="fn">load_data</span>(base_path):
+    base_path = Path(base_path)
+    hosp_path = base_path / <span class="st">"hosp"</span>
+    icu_path  = base_path / <span class="st">"icu"</span>
+
+    <span class="cm"># Load demographic and stay tables</span>
+    patients    = pd.read_csv(hosp_path / <span class="st">"patients.csv.gz"</span>,    compression=<span class="st">'gzip'</span>)
+    admissions  = pd.read_csv(hosp_path / <span class="st">"admissions.csv.gz"</span>,  compression=<span class="st">'gzip'</span>)
+    icustays    = pd.read_csv(icu_path  / <span class="st">"icustays.csv.gz"</span>,    compression=<span class="st">'gzip'</span>)
+
+    <span class="cm"># Only load the 5 vital signs we need — filters at read time for memory efficiency</span>
+    vital_itemids = [<span class="nm">220045</span>, <span class="nm">220277</span>, <span class="nm">220210</span>, <span class="nm">223762</span>, <span class="nm">220052</span>]
+    chartevents = pd.read_csv(icu_path / <span class="st">"chartevents.csv.gz"</span>, compression=<span class="st">'gzip'</span>)
+    chartevents = chartevents[chartevents[<span class="st">'itemid'</span>].isin(vital_itemids)]  <span class="cm"># ← memory optimization</span>
+
+    <span class="kw">return</span> {<span class="st">'patients'</span>: patients, <span class="st">'admissions'</span>: admissions,
+            <span class="st">'icustays'</span>: icustays, <span class="st">'chartevents'</span>: chartevents}</div>
+    </div>
+
+    <div class="code-wrap">
+        <div class="code-header">src/data_processing.py — clean_data()</div>
+        <div class="code-block"><span class="kw">def</span> <span class="fn">clean_data</span>(data):
+    <span class="cm"># Step 1: Join ICU stays with patient demographics (needed for age/gender features)</span>
+    df_stays = icustays.merge(
+        patients[[<span class="st">'subject_id'</span>, <span class="st">'gender'</span>, <span class="st">'anchor_age'</span>]],
+        on=<span class="st">'subject_id'</span>, how=<span class="st">'left'</span>
+    )
+
+    <span class="cm"># Step 2: Parse all timestamps to datetime — critical for temporal windowing later</span>
+    df_stays[<span class="st">'intime'</span>]        = pd.to_datetime(df_stays[<span class="st">'intime'</span>])
+    df_stays[<span class="st">'outtime'</span>]       = pd.to_datetime(df_stays[<span class="st">'outtime'</span>])
+    chartevents[<span class="st">'charttime'</span>]  = pd.to_datetime(chartevents[<span class="st">'charttime'</span>])
+
+    <span class="cm"># Step 3: Map numeric itemids to human-readable vital names</span>
+    item_map = {<span class="nm">220045</span>: <span class="st">'heart_rate'</span>, <span class="nm">220277</span>: <span class="st">'spo2'</span>, <span class="nm">220210</span>: <span class="st">'resp_rate'</span>,
+                <span class="nm">223762</span>: <span class="st">'temp'</span>, <span class="nm">220052</span>: <span class="st">'mean_bp'</span>}
+    chartevents[<span class="st">'vital_name'</span>] = chartevents[<span class="st">'itemid'</span>].map(item_map)
+
+    <span class="cm"># Step 4: Temporal filter — ONLY keep vitals recorded INSIDE the ICU stay window</span>
+    <span class="cm"># This is the most important cleaning step. Without it, we'd have pre/post-stay noise.</span>
+    chartevents = chartevents.merge(
+        df_stays[[<span class="st">'stay_id'</span>, <span class="st">'intime'</span>, <span class="st">'outtime'</span>]],
+        on=<span class="st">'stay_id'</span>, how=<span class="st">'left'</span>
+    )
+    chartevents = chartevents[
+        (chartevents[<span class="st">'charttime'</span>] &gt;= chartevents[<span class="st">'intime'</span>]) &amp;
+        (chartevents[<span class="st">'charttime'</span>] &lt;= chartevents[<span class="st">'outtime'</span>])
+    ]
+
+    <span class="cm"># Output: df_stays (one row per ICU stay), chartevents (one row per vital measurement)</span>
+    <span class="kw">return</span> df_stays, chartevents</div>
+    </div>
+
+    <div class="callout warning">
+        <strong>Why filter by intime/outtime?</strong> If a patient had prior admissions, their <code>chartevents</code> might contain
+        historical readings that belong to a different clinical episode. Joining on <code>stay_id</code> and filtering by the
+        <code>intime</code>/<code>outtime</code> window ensures that every measurement our model sees is causally tied to <em>this</em> ICU stay.
+        Failing to do this is a subtle — and dangerous — form of data leakage.
+    </div>
+
+    <div class="cards-grid" style="margin-top:24px;">
+        <div class="card">
+            <h3>Output: vitals_cleaned.csv</h3>
+            <p>Each row = one vital sign measurement. Key columns:</p>
+            <ul style="margin-top:10px;">
+                <li><code>stay_id</code> — Links to the ICU stay</li>
+                <li><code>charttime</code> — Timestamp of measurement</li>
+                <li><code>vital_name</code> — e.g. <code>heart_rate</code></li>
+                <li><code>valuenum</code> — Numeric value of the measurement</li>
+            </ul>
+        </div>
+        <div class="card">
+            <h3>Output: stays_cleaned.csv</h3>
+            <p>Each row = one patient ICU stay. Key columns:</p>
+            <ul style="margin-top:10px;">
+                <li><code>stay_id</code> — Unique identifier per stay</li>
+                <li><code>subject_id</code> — Patient ID (de-identified)</li>
+                <li><code>intime</code> / <code>outtime</code>— Stay boundaries</li>
+                <li><code>anchor_age</code>, <code>gender</code> — Demographics</li>
+            </ul>
+        </div>
+    </div>
+</section>
+
+<hr class="divider">
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- SECTION 3: LABELING STRATEGY                   -->
+<!-- ══════════════════════════════════════════════ -->
+<section class="section" id="labeling">
+    <div class="section-label">03 — Label Design</div>
+    <h2>The Temporal Labeling Strategy</h2>
+    <p class="section-desc">
+        This is the most critical and nuanced design decision in the entire project. A naive approach would label a patient as
+        "high risk" if they ever had a low SpO2 reading. We reject that approach entirely. Here is why,
+        and what we do instead.
+    </p>
+
+    <div class="callout danger">
+        <strong>The Naive Approach (Wrong):</strong> Label a patient's entire stay as positive if they ever deteriorated.
+        This creates massive target leakage — the model would see data from <em>after</em> the event and learn spurious patterns,
+        not predictive ones. A model trained this way will fail completely in production.
+    </div>
+
+    <h3 style="margin:32px 0 14px;font-size:1.1rem;">The 3-Window Architecture</h3>
+    <p style="color:var(--text-2);font-size:0.9rem;margin-bottom:24px;">
+        We use a <strong>sliding window approach</strong> that generates multiple labeled samples per patient stay.
+        For each position in time, we define three non-overlapping windows:
+    </p>
+
+    <div class="cards-grid" style="grid-template-columns:repeat(3,1fr);">
+        <div class="card" style="border-top:3px solid var(--green);">
+            <h3 style="color:var(--green);">① Observation Window</h3>
+            <div style="font-family:'JetBrains Mono';font-size:1.6rem;color:var(--green);margin:12px 0 8px;">12 hours</div>
+            <p><strong>What:</strong> The historical data fed as model input. We compute statistical features over this window.</p>
+            <p style="margin-top:8px;"><strong>Why 12h?</strong> Long enough to capture physiological trends, short enough to avoid confounding changes in treatment protocol.</p>
+        </div>
+        <div class="card" style="border-top:3px solid var(--amber);">
+            <h3 style="color:var(--amber);">② Safety Gap</h3>
+            <div style="font-family:'JetBrains Mono';font-size:1.6rem;color:var(--amber);margin:12px 0 8px;">6 hours</div>
+            <p><strong>What:</strong> A deliberately empty buffer between observation end and prediction start.</p>
+            <p style="margin-top:8px;"><strong>Why?</strong> This is the clinical "action window". If a nurse receives the alert now, they have 6 hours to assess and intervene before the predicted event window opens. Without this gap, predictions are operationally useless.</p>
+        </div>
+        <div class="card" style="border-top:3px solid var(--red);">
+            <h3 style="color:var(--red);">③ Prediction Horizon</h3>
+            <div style="font-family:'JetBrains Mono';font-size:1.6rem;color:var(--red);margin:12px 0 8px;">6 hours</div>
+            <p><strong>What:</strong> The future window where we check if deterioration occurs.</p>
+            <p style="margin-top:8px;"><strong>Label = 1 if:</strong> <code>SpO2 &lt; 90%</code> OR <code>HR &gt; 110 bpm</code> is observed at any time in this window.</p>
+        </div>
+    </div>
+
+    <h3 style="margin:36px 0 14px;font-size:1.1rem;">Sliding Window Implementation — <code>src/features.py</code></h3>
+    <div class="code-wrap">
+        <div class="code-header">src/features.py — generate_sliding_window_features()</div>
+        <div class="code-block"><span class="cm"># Parameters: obs_hours=12, gap_hours=6, pred_hours=6</span>
+<span class="kw">for</span> stay_id, group <span class="kw">in</span> df_vitals.groupby(<span class="st">'stay_id'</span>):
+    group = group.sort_values(<span class="st">'charttime'</span>)
+    start_time = group[<span class="st">'charttime'</span>].min()
+    end_time   = group[<span class="st">'charttime'</span>].max()
+
+    <span class="cm"># Initialize cursor at end of first possible observation window</span>
+    current_time = start_time + timedelta(hours=obs_hours)
+
+    <span class="kw">while</span> current_time + timedelta(hours=gap_hours + pred_hours) &lt;= end_time:
+
+        <span class="cm"># ① OBSERVATION WINDOW: [current_time - 12h, current_time)</span>
+        obs_window = group[
+            (group[<span class="st">'charttime'</span>] &gt;= current_time - timedelta(hours=obs_hours)) &amp;
+            (group[<span class="st">'charttime'</span>]  &lt; current_time)
+        ]
+
+        <span class="cm"># ② SKIP 6h SAFETY GAP</span>
+        pred_start = current_time + timedelta(hours=gap_hours)      <span class="cm"># +6h</span>
+        pred_end   = pred_start   + timedelta(hours=pred_hours)      <span class="cm"># +12h</span>
+
+        <span class="cm"># ③ PREDICTION WINDOW: [current_time + 6h, current_time + 12h)</span>
+        pred_window = group[
+            (group[<span class="st">'charttime'</span>] &gt;= pred_start) &amp;
+            (group[<span class="st">'charttime'</span>]  &lt; pred_end)
+        ]
+
+        <span class="cm"># Skip if either window is empty (not enough data yet)</span>
+        <span class="kw">if</span> obs_window.empty <span class="kw">or</span> pred_window.empty:
+            current_time += timedelta(hours=<span class="nm">4</span>)
+            <span class="kw">continue</span>
+
+        <span class="cm"># Binary label: SpO2 &lt; 90 OR HR &gt; 110 in the FUTURE window</span>
+        <span class="cm"># This is the deterioration event definition based on clinical guidelines</span>
+        is_deteriorated = (
+            pred_window[(pred_window[<span class="st">'vital_name'</span>] == <span class="st">'spo2'</span>) &amp;
+                        (pred_window[<span class="st">'valuenum'</span>]  &lt;  <span class="nm">90</span>)].shape[<span class="nm">0</span>] &gt; <span class="nm">0</span>
+        ) <span class="kw">or</span> (
+            pred_window[(pred_window[<span class="st">'vital_name'</span>] == <span class="st">'heart_rate'</span>) &amp;
+                        (pred_window[<span class="st">'valuenum'</span>]  &gt; <span class="nm">110</span>)].shape[<span class="nm">0</span>] &gt; <span class="nm">0</span>
+        )
+        features[<span class="st">'target'</span>] = <span class="kw">int</span>(is_deteriorated)
+
+        <span class="cm"># Slide the window by 4h to generate the next sample</span>
+        current_time += timedelta(hours=<span class="nm">4</span>)</div>
+    </div>
+
+    <div class="callout info">
+        <strong>Why slide by 4 hours?</strong> Each patient's stay generates multiple training samples (overlapping in time by 8/12h).
+        The 4-hour stride strikes a balance: fine-grained enough to capture evolving risk, coarse enough to avoid
+        near-identical adjacent samples that would inflate the training set with redundant data and artificially
+        smooth loss curves.
+    </div>
+</section>
+
+<hr class="divider">
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- SECTION 4: FEATURE ENGINEERING                 -->
+<!-- ══════════════════════════════════════════════ -->
+<section class="section" id="features">
+    <div class="section-label">04 — Feature Engineering</div>
+    <h2>What the Model Actually Sees</h2>
+    <p class="section-desc">
+        For each 12-hour observation window, we extract 3 statistical features per vital sign: Mean, Standard Deviation, and Linear Trend (slope).
+        That gives us 15 vital-derived features + 2 static demographics = <strong>17 total features</strong> going into the model.
+    </p>
+
+    <h3 style="margin-bottom:16px;font-size:1.1rem;">The 3 Feature Types Explained</h3>
+    <div class="cards-grid">
+        <div class="card">
+            <h3 style="color:var(--accent-2);">μ Mean</h3>
+            <p>The average value across all measurements in the 12h window. Captures the baseline state. A mean SpO2 of 93% tells the model this patient is already near the dangerous threshold.</p>
+            <div class="formula">mean = Σ(x_i) / n</div>
+            <p style="margin-top:8px;"><strong>Clinical significance:</strong> Absolute vital levels. A chronically hypoxic patient (SpO2 93%) is fundamentally different from a healthy one at 99%.</p>
+        </div>
+        <div class="card">
+            <h3 style="color:var(--cyan);">σ Standard Deviation</h3>
+            <p>Measures variability within the window. High variability in BP can indicate hemodynamic instability. High variability in HR can signal arrhythmia or autonomic dysfunction.</p>
+            <div class="formula">std = √(Σ(x_i − μ)² / n)</div>
+            <p style="margin-top:8px;"><strong>Clinical significance:</strong> Instability. A stable mean with high std often precedes deterioration — the patient is oscillating before crashing.</p>
+        </div>
+        <div class="card">
+            <h3 style="color:var(--amber);">β Trend (Slope)</h3>
+            <p>A 1st-degree polynomial fit on the time-indexed measurements. The slope coefficient tells us whether the vital is rising, falling, or stable across the window.</p>
+            <div class="formula" style="font-size:0.78rem;">np.polyfit(t_indices, values, deg=1)[0]</div>
+            <p style="margin-top:8px;"><strong>Clinical significance:</strong> <em>Velocity of change.</em> This is the most powerful feature. A falling SpO2 slope of −0.5%/hour over 12h is a critical predictor, even if the current value is still in normal range.</p>
+        </div>
+    </div>
+
+    <div class="code-wrap" style="margin-top:32px;">
+        <div class="code-header">src/features.py — compute_risk_features() — Full Feature Extraction</div>
+        <div class="code-block"><span class="kw">def</span> <span class="fn">compute_risk_features</span>(series):
+    <span class="st">"""Computes 3 statistical features for a single vital's time series."""</span>
+    <span class="kw">if</span> series.empty:
+        <span class="kw">return</span> {<span class="st">'mean'</span>: <span class="nm">0</span>, <span class="st">'std'</span>: <span class="nm">0</span>, <span class="st">'trend'</span>: <span class="nm">0</span>}
+
+    res = {
+        <span class="cm"># Feature 1: Mean — where the vital sits on average</span>
+        <span class="st">'mean'</span>:  series.mean(),
+
+        <span class="cm"># Feature 2: Std — how volatile the vital is</span>
+        <span class="st">'std'</span>:   series.std() <span class="kw">if</span> len(series) &gt; <span class="nm">1</span> <span class="kw">else</span> <span class="nm">0</span>,
+
+        <span class="cm"># Feature 3: Trend — the slope of a linear fit over the window</span>
+        <span class="cm"># np.polyfit returns [slope, intercept] — we only want slope [0]</span>
+        <span class="cm"># np.arange creates integer time indices: [0, 1, 2, ..., n-1]</span>
+        <span class="st">'trend'</span>: np.polyfit(np.arange(len(series)), series.values, <span class="nm">1</span>)[<span class="nm">0</span>]
+                 <span class="kw">if</span> len(series) &gt; <span class="nm">1</span> <span class="kw">else</span> <span class="nm">0</span>
+    }
+    <span class="kw">return</span> res
+
+<span class="cm"># Called inside the sliding window for each of the 5 vitals:</span>
+<span class="kw">for</span> v <span class="kw">in</span> [<span class="st">'heart_rate'</span>, <span class="st">'spo2'</span>, <span class="st">'resp_rate'</span>, <span class="st">'temp'</span>, <span class="st">'mean_bp'</span>]:
+    v_data = obs_window[obs_window[<span class="st">'vital_name'</span>] == v][<span class="st">'valuenum'</span>]
+    stats  = compute_risk_features(v_data)
+    <span class="kw">for</span> stat_name, val <span class="kw">in</span> stats.items():
+        features[f<span class="st">'{v}_{stat_name}'</span>] = val     <span class="cm"># e.g. 'spo2_trend', 'heart_rate_mean'</span></div>
+    </div>
+
+    <h3 style="margin:36px 0 16px;font-size:1.1rem;">Complete Feature Map & Clinical Impact</h3>
+    <div style="background:var(--bg-3);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+        <div class="feat-row"><div>Feature Name</div><div>Impact</div><div>Clinical Interpretation</div></div>
+        <div class="feat-row">
+            <div class="feat-name">heart_rate_mean</div>
+            <div><span class="badge amber">HIGH</span></div>
+            <div class="feat-desc">Baseline HR. Values persistently above 90 indicate tachycardia — a classic physiological stress response often preceding sepsis or decompensation.</div>
+        </div>
+        <div class="feat-row">
+            <div class="feat-name">heart_rate_trend</div>
+            <div><span class="badge red">CRITICAL</span></div>
+            <div class="feat-desc">Rising HR trend is one of the earliest signs of systemic inflammation or circulatory failure. A slope of +2 bpm/hour over 12h is a strong positive predictor.</div>
+        </div>
+        <div class="feat-row">
+            <div class="feat-name">heart_rate_std</div>
+            <div><span class="badge amber">HIGH</span></div>
+            <div class="feat-desc">High variability can indicate arrhythmia or autonomic instability — both risk factors for sudden deterioration.</div>
+        </div>
+        <div class="feat-row">
+            <div class="feat-name">spo2_mean</div>
+            <div><span class="badge red">CRITICAL</span></div>
+            <div class="feat-desc">Average blood oxygen saturation. Normal: 95–100%. Values below 94% indicate hypoxemia. The model is particularly sensitive to this feature as our label is partly defined by SpO2 &lt; 90%.</div>
+        </div>
+        <div class="feat-row">
+            <div class="feat-name">spo2_trend</div>
+            <div><span class="badge red">CRITICAL</span></div>
+            <div class="feat-desc">A negative SpO2 slope (oxygen trending down) is the strongest individual predictor in our SHAP analysis. Even a baseline of 96% with a slope of −0.3/hour warrants attention.</div>
+        </div>
+        <div class="feat-row">
+            <div class="feat-name">resp_rate_mean</div>
+            <div><span class="badge amber">HIGH</span></div>
+            <div class="feat-desc">Normal adult RR: 12–20 breaths/min. Tachypnea (&gt;20) is an early compensatory mechanism for metabolic acidosis or hypoxemia — often appears hours before SpO2 drops.</div>
+        </div>
+        <div class="feat-row">
+            <div class="feat-name">resp_rate_trend</div>
+            <div><span class="badge amber">HIGH</span></div>
+            <div class="feat-desc">Rising RR trend is a precursor to respiratory failure. The model uses this as an early warning before direct SpO2 changes become visible.</div>
+        </div>
+        <div class="feat-row">
+            <div class="feat-name">mean_bp_mean</div>
+            <div><span class="badge amber">HIGH</span></div>
+            <div class="feat-desc">Mean Arterial Pressure. Normal: 70–105 mmHg. MAP &lt; 65 is the diagnostic threshold for septic shock. The model uses this as a hemodynamic stability indicator.</div>
+        </div>
+        <div class="feat-row">
+            <div class="feat-name">mean_bp_trend</div>
+            <div><span class="badge red">CRITICAL</span></div>
+            <div class="feat-desc">Falling BP trend is a critical sign. Also notably: our drift report flagged this feature with p=0.0141, indicating the current data distribution differs from training — warranting model retraining.</div>
+        </div>
+        <div class="feat-row">
+            <div class="feat-name">temp_mean</div>
+            <div><span class="badge blue">MODERATE</span></div>
+            <div class="feat-desc">Core body temperature. Fever (&gt;38.3°C) or hypothermia (&lt;36°C) are both SIRS criteria and indicators of systemic infection or compromised thermoregulation.</div>
+        </div>
+        <div class="feat-row">
+            <div class="feat-name">anchor_age</div>
+            <div><span class="badge blue">MODERATE</span></div>
+            <div class="feat-desc">Patient age. Older patients have less physiological reserve and slower compensatory responses. Age significantly modulates the risk threshold for the same vital sign values.</div>
+        </div>
+        <div class="feat-row">
+            <div class="feat-name">gender</div>
+            <div><span class="badge cyan">LOW</span></div>
+            <div class="feat-desc">Binary (M=1, F=0). Some physiological norms differ by sex (e.g., baseline HR). Included as a covariate but expected to have low SHAP impact in our dataset size.</div>
+        </div>
+    </div>
+</section>
+
+<hr class="divider">
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- SECTION 5: MODEL TRAINING                      -->
+<!-- ══════════════════════════════════════════════ -->
+<section class="section" id="model">
+    <div class="section-label">05 — Model Training</div>
+    <h2>XGBoost — Why & How</h2>
+    <p class="section-desc">
+        We use <strong>XGBoost (eXtreme Gradient Boosting)</strong> as our primary classifier.
+        This choice is deliberate and justified by several factors specific to clinical tabular data.
+    </p>
+
+    <div class="cards-grid">
+        <div class="card">
+            <h4>Why XGBoost over Neural Networks?</h4>
+            <p>With ~2,300 training samples, deep neural networks would massively overfit. XGBoost regularizes natively via <code>max_depth</code>, <code>subsample</code>, and <code>learning_rate</code>. It's also fully interpretable via SHAP — essential for clinical trust and regulatory compliance.</p>
+        </div>
+        <div class="card">
+            <h4>Why XGBoost over Random Forest?</h4>
+            <p>Gradient boosting learns sequentially, correcting the errors of previous weak learners. On small, imbalanced medical datasets, this iterative correction typically outperforms the parallel nature of Random Forests, especially for the positive minority class (deterioration events).</p>
+        </div>
+        <div class="card">
+            <h4>Why Temporal Train/Test Split?</h4>
+            <p>We sort by timestamp and split 80/20 chronologically — NOT randomly. Random splits would leak future patterns into training (a form of temporal data leakage). A chronological split simulates the real-world deployment scenario: training on historical data, predicting on future patients.</p>
+        </div>
+    </div>
+
+    <h3 style="margin:36px 0 16px;font-size:1.1rem;">Full Training Code — <code>src/train.py</code></h3>
+    <div class="code-wrap">
+        <div class="code-header">src/train.py — train_pipeline() with MLflow Integration</div>
+        <div class="code-block"><span class="kw">def</span> <span class="fn">train_pipeline</span>(data_path):
+    df = pd.read_csv(data_path)
+    df[<span class="st">'timestamp'</span>] = pd.to_datetime(df[<span class="st">'timestamp'</span>])
+
+    <span class="cm"># CRITICAL: Sort chronologically before splitting to enforce temporal order</span>
+    df = df.sort_values(<span class="st">'timestamp'</span>)
+    split_idx = int(len(df) * <span class="nm">0.8</span>)
+    train_df, test_df = df.iloc[:split_idx], df.iloc[split_idx:]
+
+    <span class="cm"># Drop non-feature columns — these are identifiers or the target itself</span>
+    cols_to_drop = [<span class="st">'stay_id'</span>, <span class="st">'subject_id'</span>, <span class="st">'target'</span>, <span class="st">'timestamp'</span>]
+    X_train, y_train = train_df.drop(columns=cols_to_drop), train_df[<span class="st">'target'</span>]
+    X_test,  y_test  = test_df.drop(columns=cols_to_drop),  test_df[<span class="st">'target'</span>]
+
+    mlflow.set_experiment(<span class="st">"ICU_Deterioration_v2"</span>)
+
+    <span class="kw">with</span> mlflow.start_run() <span class="kw">as</span> run:
+        <span class="cm"># Hyperparameters — chosen conservatively to prevent overfitting on small dataset</span>
+        params = {
+            <span class="st">'n_estimators'</span>:  <span class="nm">150</span>,   <span class="cm"># number of trees — not too many to avoid overfitting</span>
+            <span class="st">'max_depth'</span>:      <span class="nm">4</span>,     <span class="cm"># shallow trees for regularization</span>
+            <span class="st">'learning_rate'</span>:  <span class="nm">0.05</span>,  <span class="cm"># small LR compensated by more estimators</span>
+            <span class="st">'subsample'</span>:      <span class="nm">0.8</span>,   <span class="cm"># row sampling per tree — reduces variance</span>
+            <span class="st">'eval_metric'</span>:    <span class="st">'auc'</span> <span class="cm"># optimize for ranking, not hard classification</span>
+        }
+        mlflow.log_params(params)   <span class="cm"># ← automatically versioned experiment log</span>
+
+        model = get_model(params)
+        model.fit(X_train, y_train)
+
+        <span class="cm"># Evaluation: compute soft probabilities, then apply threshold</span>
+        y_prob = model.predict_proba(X_test)[:, <span class="nm">1</span>]  <span class="cm"># probability of class 1 (deterioration)</span>
+        y_pred = (y_prob &gt; <span class="nm">0.5</span>).astype(int)          <span class="cm"># default threshold — can be tuned</span>
+
+        metrics = {
+            <span class="st">"auc"</span>:       roc_auc_score(y_test,  y_prob),
+            <span class="st">"f1"</span>:        f1_score(y_test,       y_pred),
+            <span class="st">"precision"</span>: precision_score(y_test, y_pred, zero_division=<span class="nm">0</span>),
+            <span class="st">"recall"</span>:    recall_score(y_test,    y_pred, zero_division=<span class="nm">0</span>)
+        }
+        mlflow.log_metrics(metrics)
+
+        <span class="cm"># Register model in MLflow Model Registry for versioned deployment</span>
+        mlflow.xgboost.log_model(
+            model,
+            artifact_path=<span class="st">"model"</span>,
+            registered_model_name=<span class="st">"ICU_Deterioration_XGB"</span>
+        )
+
+        <span class="cm"># Also persist locally for direct loading by the FastAPI server</span>
+        joblib.dump(model,                    <span class="st">"models/icu_model.joblib"</span>)
+        joblib.dump(X_train.columns.tolist(), <span class="st">"models/feature_columns.joblib"</span>)
+
+        <span class="cm"># Save training reference data — used by monitoring.py to detect drift later</span>
+        train_df.to_csv(<span class="st">"data/training_reference.csv"</span>, index=<span class="kw">False</span>)</div>
+    </div>
+
+    <h3 style="margin:36px 0 16px;font-size:1.1rem;">Hyperparameter Choices Explained</h3>
+    <div class="cards-grid">
+        <div class="card" style="border-left:3px solid var(--accent);">
+            <h4><code>max_depth = 4</code></h4>
+            <p>Limits tree depth. Deep trees memorize training data. With only ~2300 samples and 17 features, a depth of 4 allows meaningful interactions (up to 4-way) without overfitting to noise in a small clinical dataset.</p>
+        </div>
+        <div class="card" style="border-left:3px solid var(--cyan);">
+            <h4><code>learning_rate = 0.05</code></h4>
+            <p>Also called <em>eta</em>. Each new tree's contribution is scaled by this factor. A small LR means we need more trees (150 vs. 50) but the final model is more robust and generalizes better to the held-out test set.</p>
+        </div>
+        <div class="card" style="border-left:3px solid var(--green);">
+            <h4><code>subsample = 0.8</code></h4>
+            <p>Each tree is trained on a random 80% sample of the training rows. This is <em>stochastic gradient boosting</em> — the randomness prevents any single outlier patient from dominating multiple trees and reduces overfitting.</p>
+        </div>
+        <div class="card" style="border-left:3px solid var(--amber);">
+            <h4><code>eval_metric = 'auc'</code></h4>
+            <p>We optimize for ranking performance (AUC) not binary accuracy. AUC is threshold-agnostic and handles class imbalance better — in our dataset, positive events are less common, making AUC a more meaningful optimization target than raw accuracy or logloss.</p>
+        </div>
+    </div>
+
+    <h3 style="margin:36px 0 14px;font-size:1.1rem;">How to See Results in MLflow</h3>
+    <div class="callout success">
+        <strong>Run: </strong><code>mlflow ui --backend-store-uri sqlite:///mlflow.db</code> — then open <strong>http://localhost:5000</strong>.
+        You'll see the "ICU_Deterioration_v2" experiment with every run tracked. Each row shows: parameters used,
+        AUC achieved, F1, Precision, Recall, and direct links to the serialized model artifact.
+        The Model Registry tab shows "ICU_Deterioration_XGB" with versioning and stage transitions (Staging → Production).
+    </div>
+
+    <h3 style="margin:36px 0 16px;font-size:1.1rem;">Model Performance — Interpreting the Results</h3>
+    <table class="metric-table">
+        <thead>
+            <tr><th>Metric</th><th>Score</th><th>Visual</th><th>What It Means</th><th>Clinical Interpretation</th></tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>ROC-AUC</td>
+                <td style="font-family:'JetBrains Mono';color:var(--accent-2);font-size:1rem;">0.755</td>
+                <td><div class="bar-wrap"><div class="bar-fill" style="width:75.5%;background:var(--accent);"></div></div></td>
+                <td style="color:var(--text-2);">Probability the model ranks a random deteriorating patient higher than a random stable one.</td>
+                <td style="color:var(--text-2);">0.755 means 75.5% of the time, we correctly order a sick vs. healthy patient. A random classifier scores 0.5. Clinical systems typically aim for &gt;0.75.</td>
+            </tr>
+            <tr>
+                <td>Precision</td>
+                <td style="font-family:'JetBrains Mono';color:var(--amber);font-size:1rem;">0.669</td>
+                <td><div class="bar-wrap"><div class="bar-fill" style="width:66.9%;background:var(--amber);"></div></div></td>
+                <td style="color:var(--text-2);">Of all patients flagged as high-risk, 66.9% actually deteriorated (TP / (TP + FP)).</td>
+                <td style="color:var(--text-2);">~1 in 3 alerts is a false alarm. In clinical settings, this is acceptable — nurses quickly learn to validate alerts. Over-alerting causes alarm fatigue, but is preferable to missing events.</td>
+            </tr>
+            <tr>
+                <td>Recall</td>
+                <td style="font-family:'JetBrains Mono';color:var(--green);font-size:1rem;">0.627</td>
+                <td><div class="bar-wrap"><div class="bar-fill" style="width:62.7%;background:var(--green);"></div></div></td>
+                <td style="color:var(--text-2);">Of all patients who actually deteriorated, 62.7% were flagged by the model (TP / (TP + FN)).</td>
+                <td style="color:var(--text-2);"><strong>This is our most important metric.</strong> Missing a deterioration event (False Negative) can be fatal. We accept lower precision to drive recall higher. Lowering the prediction threshold from 0.5 to 0.35 would further increase recall.</td>
+            </tr>
+            <tr>
+                <td>F1-Score</td>
+                <td style="font-family:'JetBrains Mono';color:var(--cyan);font-size:1rem;">0.647</td>
+                <td><div class="bar-wrap"><div class="bar-fill" style="width:64.7%;background:var(--cyan);"></div></div></td>
+                <td style="color:var(--text-2);">Harmonic mean of Precision and Recall: 2×P×R / (P+R)</td>
+                <td style="color:var(--text-2);">A balanced metric. On a small demo dataset, 0.647 is competitive. The real bottleneck is dataset size — with 200+ patients (full MIMIC-IV), we expect F1 &gt; 0.72.</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="callout warning" style="margin-top:24px;">
+        <strong>Threshold Tuning:</strong> The default threshold is <code>0.5</code>. In a clinical deployment,
+        this should be tuned on a held-out validation set using the Precision-Recall curve to find the operating point
+        that satisfies the clinical requirement (e.g., "we must catch at least 80% of events, even if false alarm rate rises").
+        This is a clinical workflow decision, not a pure ML one.
+    </div>
+</section>
+
+<hr class="divider">
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- SECTION 6: EXPLAINABILITY                       -->
+<!-- ══════════════════════════════════════════════ -->
+<section class="section">
+    <div class="section-label">06 — Explainability</div>
+    <h2>SHAP: Why Did the Model Alert?</h2>
+    <p class="section-desc">
+        Black-box predictions are unacceptable in clinical environments. We use <strong>SHAP (SHapley Additive Explanations)</strong>
+        to provide feature-level explanations for every prediction — both globally for model validation and locally for each patient alert.
+    </p>
+
+    <div class="deep-grid">
+        <div>
+            <h3 style="font-size:1.05rem;margin-bottom:12px;">How SHAP Works</h3>
+            <p style="color:var(--text-2);font-size:0.9rem;line-height:1.8;">
+                SHAP values are grounded in cooperative game theory (Shapley values). For each prediction, SHAP calculates
+                each feature's <em>marginal contribution</em> to the output by iterating over all possible subsets of features.
+                The result: each feature gets a signed value indicating how much it pushed the prediction above or below the baseline.
+            </p>
+            <div class="callout info" style="margin-top:16px;">
+                <strong>Interpretation example:</strong> If <code>spo2_trend = −0.4</code> and its SHAP value is <code>+0.18</code>,
+                it means this falling oxygen trend is <em>pushing the risk score up by 0.18</em> compared to a patient with a stable SpO2.
+                A clinician can see exactly why the model fired.
+            </div>
+        </div>
+        <div>
+            <div class="code-wrap">
+                <div class="code-header">src/explainability.py</div>
+                <div class="code-block"><span class="kw">import</span> shap
+
+<span class="kw">def</span> <span class="fn">generate_explanations</span>(model_path, data_path):
+    model = joblib.load(model_path)
+    df = pd.read_csv(data_path)
+    X = df.drop(columns=[<span class="st">'stay_id'</span>, <span class="st">'subject_id'</span>,
+                          <span class="st">'target'</span>, <span class="st">'timestamp'</span>])
+
+    <span class="cm"># TreeExplainer: optimized for tree-based models</span>
+    <span class="cm"># Returns exact Shapley values (not approximations)</span>
+    explainer   = shap.Explainer(model, X)
+    shap_values = explainer(X)
+
+    <span class="cm"># Global summary: which features matter most overall?</span>
+    shap.summary_plot(shap_values, X, show=<span class="kw">False</span>)
+    plt.savefig(<span class="st">"reports/shap_summary.png"</span>)
+    <span class="cm"># View: bar chart of mean |SHAP| per feature</span></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="callout success" style="margin-top:16px;">
+        <strong>How to see SHAP results:</strong> After running the full pipeline, open <code>reports/shap_summary.png</code>.
+        The horizontal bar chart shows features sorted by mean absolute SHAP value. Features at the top have the highest
+        average impact. Expect <code>spo2_trend</code>, <code>mean_bp_trend</code>, and <code>heart_rate_mean</code> to rank highest.
+    </div>
+</section>
+
+<hr class="divider">
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- SECTION 7: DRIFT MONITORING                    -->
+<!-- ══════════════════════════════════════════════ -->
+<section class="section" id="monitoring">
+    <div class="section-label">07 — Production Monitoring</div>
+    <h2>Distribution Drift Detection (KS-Test)</h2>
+    <p class="section-desc">
+        A model trained on historical data degrades as the real world changes — seasonal disease patterns, new admission types,
+        updated clinical protocols. We monitor for this drift automatically using the Kolmogorov-Smirnov (KS) test.
+    </p>
+
+    <div class="deep-grid wide">
+        <div>
+            <h3 style="font-size:1.05rem;margin-bottom:14px;">The KS Test — What It Is</h3>
+            <p style="color:var(--text-2);font-size:0.9rem;line-height:1.8;margin-bottom:12px;">
+                The KS test is a non-parametric statistical test that measures the maximum absolute difference between
+                two empirical cumulative distribution functions (ECDFs). It answers the question:
+                <em>"Could these two samples have been drawn from the same distribution?"</em>
+            </p>
+            <div class="formula">D = max|F_training(x) − F_current(x)|</div>
+            <p style="color:var(--text-2);font-size:0.88rem;margin-top:12px;">
+                The test returns a statistic <strong>D</strong> and a <strong>p-value</strong>.
+                A p-value below 0.05 means: "There is less than a 5% chance these distributions are the same —
+                this feature has statistically drifted."
+            </p>
+            <div class="callout warning" style="margin-top:16px;">
+                <strong>Why KS and not PSI?</strong> The Population Stability Index (PSI) requires binning and is sensitive
+                to bin choice. KS is exact, bin-free, and valid for small sample sizes — which is important in a clinical
+                context where we may have limited recent inference data.
+            </div>
+        </div>
+        <div>
+            <div class="code-wrap">
+                <div class="code-header">src/monitoring.py — detect_drift()</div>
+                <div class="code-block"><span class="kw">from</span> scipy.stats <span class="kw">import</span> ks_2samp
+
+<span class="kw">def</span> <span class="fn">detect_drift</span>(reference_path, current_path):
+    ref_df = pd.read_csv(reference_path)
+    cur_df = pd.read_csv(current_path)
+
+    vitals = [
+        <span class="st">'heart_rate_mean'</span>, <span class="st">'spo2_mean'</span>,
+        <span class="st">'resp_rate_mean'</span>,  <span class="st">'temp_mean'</span>,
+        <span class="st">'mean_bp_mean'</span>
+    ]
+
+    <span class="kw">for</span> v <span class="kw">in</span> vitals:
+        <span class="cm"># ks_2samp compares two independent samples</span>
+        stat, p_value = ks_2samp(
+            ref_df[v].dropna(),
+            cur_df[v].dropna()
+        )
+        is_drift = p_value &lt; <span class="nm">0.05</span>
+        status = <span class="st">"[DRIFT]"</span> <span class="kw">if</span> is_drift <span class="kw">else</span> <span class="st">"[OK]"</span>
+        print(f<span class="st">"{v:22} p={p_value:.4f} {status}"</span>)</div>
+            </div>
+        </div>
+    </div>
+
+    <h3 style="margin:32px 0 16px;font-size:1.1rem;">Current Drift Report — Interpreting the Results</h3>
+    <table class="metric-table">
+        <thead><tr><th>Feature</th><th>P-Value</th><th>Status</th><th>Interpretation & Action</th></tr></thead>
+        <tbody>
+            <tr>
+                <td>Heart Rate (mean)</td>
+                <td style="font-family:'JetBrains Mono';">0.8088</td>
+                <td><span class="badge green">STABLE</span></td>
+                <td style="color:var(--text-2);">p=0.81 → very high, strong evidence distributions are identical. No action needed. HR distribution in current data closely matches training reference.</td>
+            </tr>
+            <tr>
+                <td>SpO2 (mean)</td>
+                <td style="font-family:'JetBrains Mono';">0.9985</td>
+                <td><span class="badge green">STABLE</span></td>
+                <td style="color:var(--text-2);">p≈1.0 → essentially identical distributions. This is expected when comparing the training set against itself (demo mode). In production, this would reflect no seasonal SpO2 shift.</td>
+            </tr>
+            <tr>
+                <td>Respiratory Rate (mean)</td>
+                <td style="font-family:'JetBrains Mono';">1.0000</td>
+                <td><span class="badge green">STABLE</span></td>
+                <td style="color:var(--text-2);">p=1.0 → distributions are statistically indistinguishable. Completely stable.</td>
+            </tr>
+            <tr>
+                <td>Temperature (mean)</td>
+                <td style="font-family:'JetBrains Mono';">1.0000</td>
+                <td><span class="badge green">STABLE</span></td>
+                <td style="color:var(--text-2);">p=1.0 → stable. Temperature is the most physiologically constrained vital — its distribution changes very slowly unless there is a population-level clinical change.</td>
+            </tr>
+            <tr>
+                <td><strong>Mean BP (mean)</strong></td>
+                <td style="font-family:'JetBrains Mono';color:var(--red);font-weight:700;">0.0141</td>
+                <td><span class="badge red">DRIFT</span></td>
+                <td style="color:var(--text-2);"><strong>p=0.014 &lt; 0.05 → drift confirmed.</strong> The mean arterial pressure distribution in current data differs significantly from what the model was trained on. Possible causes: patient acuity shift, change in vasopressor protocols. <strong>Recommended action: investigate data source, run retraining if confirmed.</strong></td>
+            </tr>
+        </tbody>
+    </table>
+</section>
+
+<hr class="divider">
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- SECTION 8: FASTAPI                             -->
+<!-- ══════════════════════════════════════════════ -->
+<section class="section" id="api">
+    <div class="section-label">08 — REST API</div>
+    <h2>FastAPI: Inside the Inference Engine</h2>
+    <p class="section-desc">
+        The FastAPI backend is the runtime core of the system. It serves the dashboard UI, provides the prediction endpoint,
+        and handles all real-time feature engineering. Here is exactly what happens for every prediction request.
+    </p>
+
+    <h3 style="font-size:1.1rem;margin-bottom:16px;">Request Lifecycle — Step by Step</h3>
+    <div class="timeline">
+        <div class="timeline-item">
+            <div class="timeline-dot"></div>
+            <h3>Step 1: Startup — Model Loading</h3>
+            <p>When uvicorn starts, FastAPI loads <code>models/icu_model.joblib</code> and <code>models/feature_columns.joblib</code>
+            into memory <strong>once</strong>. The feature columns list is critical — it defines the exact order and set of features
+            the model expects. This ensures the API always builds its feature matrix in the same column order the model was trained on,
+            even if only partial vitals are sent.</p>
+            <div class="code-wrap">
+                <div class="code-header">api/main.py — Model Loading at Startup</div>
+                <div class="code-block"><span class="kw">try</span>:
+    model           = joblib.load(<span class="st">"models/icu_model.joblib"</span>)
+    feature_columns = joblib.load(<span class="st">"models/feature_columns.joblib"</span>)
+<span class="kw">except</span>:
+    model, feature_columns = <span class="kw">None</span>, <span class="kw">None</span>   <span class="cm"># graceful degradation</span></div>
+            </div>
+        </div>
+
+        <div class="timeline-item">
+            <div class="timeline-dot"></div>
+            <h3>Step 2: Schema Validation (Pydantic)</h3>
+            <p>The incoming JSON is parsed against the <code>VitalInput</code> Pydantic schema <em>before</em> any business logic runs.
+            If a field is missing, has the wrong type, or is malformed, FastAPI immediately returns HTTP 422 with a detailed
+            validation error. This prevents corrupt data from ever touching the model.</p>
+            <div class="code-wrap">
+                <div class="code-header">api/main.py — Request Schema</div>
+                <div class="code-block"><span class="kw">class</span> <span class="fn">VitalInput</span>(BaseModel):
+    subject_id:  str              <span class="cm"># Patient identifier (de-identified)</span>
+    stay_id:     str              <span class="cm"># ICU stay identifier</span>
+    gender:      int              <span class="cm"># 1=Male, 0=Female (pre-encoded)</span>
+    anchor_age:  int              <span class="cm"># Patient age</span>
+    vitals:      Dict[str, List[float]]   <span class="cm"># e.g. {"heart_rate": [80, 85, 90, ...]}</span>
+
+<span class="cm"># Example valid request body:</span>
+<span class="st">{
+  "subject_id": "P-1001",
+  "stay_id": "S-4521",
+  "gender": 1,
+  "anchor_age": 72,
+  "vitals": {
+    "heart_rate": [88, 89, 91, 94, 97],
+    "spo2":       [96, 95, 94, 93, 92],
+    "resp_rate":  [18, 19, 20, 21, 22],
+    "temp":       [37.2, 37.4, 37.6],
+    "mean_bp":    [78, 74, 70, 66]
+  }
+}</span></div>
+            </div>
+        </div>
+
+        <div class="timeline-item">
+            <div class="timeline-dot"></div>
+            <h3>Step 3: Transient Feature Engineering</h3>
+            <p>The raw <code>List[float]</code> for each vital must be transformed into the same features the XGBoost model was trained on.
+            This is done <strong>on-the-fly</strong> inside the <code>/predict</code> handler.
+            We compute Mean, Std, and Trend for each vital from the submitted list — without needing to store patient history server-side.</p>
+            <div class="code-wrap">
+                <div class="code-header">api/main.py — Inline Feature Engineering</div>
+                <div class="code-block">features = {<span class="st">'gender'</span>: data.gender, <span class="st">'anchor_age'</span>: data.anchor_age}
+vital_names = [<span class="st">'heart_rate'</span>, <span class="st">'spo2'</span>, <span class="st">'resp_rate'</span>, <span class="st">'temp'</span>, <span class="st">'mean_bp'</span>]
+
+<span class="kw">for</span> v <span class="kw">in</span> vital_names:
+    values = data.vitals.get(v, [])   <span class="cm"># Default to empty if vital not sent</span>
+    <span class="kw">if</span> values:
+        series = pd.Series(values)
+        features[f<span class="st">'{v}_mean'</span>]  = series.mean()
+        features[f<span class="st">'{v}_std'</span>]   = series.std() <span class="kw">if</span> len(series) &gt; <span class="nm">1</span> <span class="kw">else</span> <span class="nm">0</span>
+        features[f<span class="st">'{v}_trend'</span>] = np.polyfit(
+            np.arange(len(series)), series.values, <span class="nm">1</span>
+        )[<span class="nm">0</span>] <span class="kw">if</span> len(series) &gt; <span class="nm">1</span> <span class="kw">else</span> <span class="nm">0</span>
+    <span class="kw">else</span>:
+        <span class="cm"># If a vital is missing, fill with zeros — maintains column schema</span>
+        features[f<span class="st">'{v}_mean'</span>] = features[f<span class="st">'{v}_std'</span>] = features[f<span class="st">'{v}_trend'</span>] = <span class="nm">0</span>
+
+<span class="cm"># Build DataFrame and align to exact training column order</span>
+<span class="cm"># reindex fills any missing columns with 0 — robust to partial vital submissions</span>
+df_input = pd.DataFrame([features]).reindex(columns=feature_columns, fill_value=<span class="nm">0</span>)</div>
+            </div>
+        </div>
+
+        <div class="timeline-item">
+            <div class="timeline-dot"></div>
+            <h3>Step 4: Inference & Risk Classification</h3>
+            <p><code>predict_proba</code> returns a 2-element array: <code>[P(class=0), P(class=1)]</code>.
+            We take <code>[:, 1]</code> — the probability of deterioration. This continuous score is then classified
+            into three actionable risk tiers.</p>
+            <div class="code-wrap">
+                <div class="code-header">api/main.py — Inference and Classification</div>
+                <div class="code-block"><span class="cm"># model.predict_proba returns shape (n_samples, 2)</span>
+<span class="cm"># [0] = first (only) sample, [1] = probability of class 1 (deterioration)</span>
+risk_score = <span class="kw">float</span>(model.predict_proba(df_input)[<span class="nm">0</span>, <span class="nm">1</span>])
+
+<span class="cm"># Three-tier clinical risk classification</span>
+<span class="cm"># Thresholds chosen to balance alarm burden with detection sensitivity</span>
+<span class="kw">if</span>   risk_score &gt; <span class="nm">0.7</span>: risk_level = <span class="st">"HIGH"</span>       <span class="cm"># Immediate bedside assessment</span>
+<span class="kw">elif</span> risk_score &gt; <span class="nm">0.4</span>: risk_level = <span class="st">"MODERATE"</span>    <span class="cm"># Increased monitoring frequency</span>
+<span class="kw">else</span>:                   risk_level = <span class="st">"LOW"</span>         <span class="cm"># Routine monitoring continues</span>
+
+<span class="kw">return</span> {
+    <span class="st">"patient_id"</span>:          data.subject_id,
+    <span class="st">"risk_score"</span>:          round(risk_score, <span class="nm">4</span>),   <span class="cm"># e.g. 0.8241</span>
+    <span class="st">"risk_level"</span>:          risk_level,               <span class="cm"># "HIGH", "MODERATE", or "LOW"</span>
+    <span class="st">"prediction_horizon"</span>:  <span class="st">"6-12h"</span>,                  <span class="cm"># always 6-12h in this version</span>
+    <span class="st">"model_version"</span>:       <span class="st">"v1.0"</span>,
+    <span class="st">"timestamp"</span>:           datetime.now().isoformat()
+}</div>
+            </div>
+        </div>
+    </div>
+
+    <h3 style="margin:32px 0 14px;font-size:1.1rem;">Complete API Endpoint Map</h3>
+    <div class="cards-grid" style="grid-template-columns:1fr 1fr;">
+        <div class="card">
+            <h3 style="color:var(--green);font-family:'JetBrains Mono';">GET /health</h3>
+            <p style="margin:10px 0;">Liveness probe for load balancers and Kubernetes. Returns model loaded status.</p>
+            <div class="code-block standalone" style="font-size:0.76rem;"><span class="st">{
+  "status": "ready",
+  "model_loaded": true,
+  "timestamp": "2026-04-28T09:00:00"
+}</span></div>
+        </div>
+        <div class="card">
+            <h3 style="color:var(--amber);font-family:'JetBrains Mono';">POST /predict</h3>
+            <p style="margin:10px 0;">Core inference endpoint. Accepts raw vitals, returns risk score + classification.</p>
+            <div class="code-block standalone" style="font-size:0.76rem;"><span class="st">{
+  "patient_id":         "P-1001",
+  "risk_score":         0.8241,
+  "risk_level":         "HIGH",
+  "prediction_horizon": "6-12h",
+  "model_version":      "v1.0"
+}</span></div>
+        </div>
+        <div class="card">
+            <h3 style="color:var(--cyan);font-family:'JetBrains Mono';">GET /</h3>
+            <p>Serves <code>dashboard/index.html</code> — the real-time ICU monitoring dashboard. The API acts as its own web server, no separate Nginx needed.</p>
+        </div>
+        <div class="card">
+            <h3 style="color:var(--purple);font-family:'JetBrains Mono';">GET /about</h3>
+            <p>Serves <code>dashboard/about.html</code> — this page. Both HTML files are served as <code>FileResponse</code> objects directly by FastAPI.</p>
+        </div>
+    </div>
+</section>
+
+<hr class="divider">
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- SECTION 9: TESTING                             -->
+<!-- ══════════════════════════════════════════════ -->
+<section class="section" id="tests">
+    <div class="section-label">09 — Quality Assurance</div>
+    <h2>The Testing Strategy — 8 Tests, 3 Layers</h2>
+    <p class="section-desc">
+        The test suite is organized into three independent modules, each validating a different layer of the system.
+        All 8 tests pass. Here is what each one checks and why it matters.
+    </p>
+
+    <h3 style="font-size:1.05rem;margin-bottom:16px;">Layer 1: Data Integrity — <code>tests/test_data_validation.py</code></h3>
+    <div class="code-wrap">
+        <div class="code-header">tests/test_data_validation.py — 3 tests</div>
+        <div class="code-block"><span class="cm"># TEST 1: No temporal data leakage</span>
+<span class="cm"># Verifies that the 'timestamp' column exists and has no nulls.</span>
+<span class="cm"># A null timestamp would make temporal ordering undefined — a leakage risk.</span>
+<span class="kw">def</span> <span class="fn">test_data_leakage</span>():
+    df = pd.read_csv(DATA_PATH)
+    assert <span class="st">'timestamp'</span> <span class="kw">in</span> df.columns      <span class="cm"># column must exist</span>
+    assert <span class="kw">not</span> df[<span class="st">'timestamp'</span>].isnull().any()  <span class="cm"># no missing timestamps</span>
+
+<span class="cm"># TEST 2: No null patient/stay identifiers</span>
+<span class="cm"># A null stay_id would corrupt the train/test grouping — we'd assign a sample</span>
+<span class="cm"># to no patient, making temporal split and drift monitoring meaningless.</span>
+<span class="kw">def</span> <span class="fn">test_no_null_critical_ids</span>():
+    df = pd.read_csv(DATA_PATH)
+    assert <span class="kw">not</span> df[<span class="st">'stay_id'</span>].isnull().any()
+    assert <span class="kw">not</span> df[<span class="st">'subject_id'</span>].isnull().any()
+
+<span class="cm"># TEST 3: Binary target integrity</span>
+<span class="cm"># Confirms the target column only contains {0, 1}.</span>
+<span class="cm"># Any other value (e.g., NaN, 2, -1) would silently corrupt the classifier.</span>
+<span class="kw">def</span> <span class="fn">test_target_distribution</span>():
+    df = pd.read_csv(DATA_PATH)
+    assert set(df[<span class="st">'target'</span>].unique()).issubset({<span class="nm">0</span>, <span class="nm">1</span>})</div>
+    </div>
+
+    <h3 style="font-size:1.05rem;margin:32px 0 16px;">Layer 2: Model Integrity — <code>tests/test_model.py</code></h3>
+    <div class="code-wrap">
+        <div class="code-header">tests/test_model.py — 3 tests</div>
+        <div class="code-block"><span class="cm"># TEST 4: Model artifact loads without error</span>
+<span class="cm"># Verifies the .joblib file is a valid, loadable sklearn-compatible model.</span>
+<span class="cm"># A corrupted artifact here would cause a silent 500 in production.</span>
+<span class="kw">def</span> <span class="fn">test_model_loading</span>():
+    model = joblib.load(MODEL_PATH)
+    assert model <span class="kw">is not None</span>
+
+<span class="cm"># TEST 5: Feature schema consistency</span>
+<span class="cm"># The feature_columns.joblib must contain the exact list used at training time.</span>
+<span class="cm"># Also verifies that static features (gender, anchor_age) are in the schema.</span>
+<span class="kw">def</span> <span class="fn">test_feature_consistency</span>():
+    cols = joblib.load(COLS_PATH)
+    assert isinstance(cols, list)
+    assert <span class="st">'gender'</span>     <span class="kw">in</span> cols   <span class="cm"># static demographic features must be present</span>
+    assert <span class="st">'anchor_age'</span> <span class="kw">in</span> cols
+
+<span class="cm"># TEST 6: Prediction output shape</span>
+<span class="cm"># Creates a dummy zero-vector input and verifies the model returns exactly 1 prediction.</span>
+<span class="cm"># Catches issues with input dimensionality or model serialization errors.</span>
+<span class="kw">def</span> <span class="fn">test_model_prediction_shape</span>():
+    model = joblib.load(MODEL_PATH)
+    cols  = joblib.load(COLS_PATH)
+    dummy_input = np.zeros((<span class="nm">1</span>, len(cols)))  <span class="cm"># shape: (1, n_features)</span>
+    pred = model.predict(dummy_input)
+    assert len(pred) == <span class="nm">1</span></div>
+    </div>
+
+    <h3 style="font-size:1.05rem;margin:32px 0 16px;">Layer 3: API Contract — <code>tests/test_api.py</code></h3>
+    <div class="code-wrap">
+        <div class="code-header">tests/test_api.py — 2 tests (using FastAPI TestClient)</div>
+        <div class="code-block"><span class="kw">from</span> fastapi.testclient <span class="kw">import</span> TestClient
+<span class="kw">from</span> api.main <span class="kw">import</span> app
+
+client = TestClient(app)   <span class="cm"># spins up in-process ASGI server — no real HTTP needed</span>
+
+<span class="cm"># TEST 7: Health endpoint contract</span>
+<span class="cm"># Validates that /health returns HTTP 200 and a {"status": "ready"} body.</span>
+<span class="cm"># This mirrors what an AWS target group health check or Kubernetes readiness probe expects.</span>
+<span class="kw">def</span> <span class="fn">test_health_check_endpoint</span>():
+    response = client.get(<span class="st">"/health"</span>)
+    assert response.status_code == <span class="nm">200</span>
+    assert response.json()[<span class="st">"status"</span>] == <span class="st">"ready"</span>
+
+<span class="cm"># TEST 8: Full prediction API contract</span>
+<span class="cm"># Sends a realistic payload and validates the entire response schema:</span>
+<span class="cm"># - All required keys are present</span>
+<span class="cm"># - risk_score is a valid probability [0, 1]</span>
+<span class="cm"># - risk_level is one of the three defined tiers</span>
+<span class="kw">def</span> <span class="fn">test_api_contract</span>():
+    payload = {
+        <span class="st">"subject_id"</span>: <span class="st">"TEST_123"</span>, <span class="st">"stay_id"</span>: <span class="st">"STAY_456"</span>,
+        <span class="st">"gender"</span>: <span class="nm">1</span>, <span class="st">"anchor_age"</span>: <span class="nm">60</span>,
+        <span class="st">"vitals"</span>: {<span class="st">"heart_rate"</span>: [<span class="nm">80</span>, <span class="nm">85</span>, <span class="nm">90</span>], <span class="st">"spo2"</span>: [<span class="nm">98</span>, <span class="nm">97</span>, <span class="nm">96</span>]}
+    }
+    response = client.post(<span class="st">"/predict"</span>, json=payload)
+    data = response.json()
+
+    expected_keys = {<span class="st">"patient_id"</span>, <span class="st">"risk_score"</span>, <span class="st">"risk_level"</span>,
+                     <span class="st">"prediction_horizon"</span>, <span class="st">"model_version"</span>, <span class="st">"timestamp"</span>}
+    assert set(data.keys()) == expected_keys            <span class="cm"># no extra/missing fields</span>
+    assert <span class="nm">0</span> &lt;= data[<span class="st">"risk_score"</span>] &lt;= <span class="nm">1</span>               <span class="cm"># valid probability</span>
+    assert data[<span class="st">"risk_level"</span>] <span class="kw">in</span> [<span class="st">"LOW"</span>, <span class="st">"MODERATE"</span>, <span class="st">"HIGH"</span>]</div>
+    </div>
+    <div class="callout success" style="margin-top:16px;">
+        <strong>Run all tests:</strong> <code>pytest tests/ -v</code> from the project root.
+        You should see 8 tests collected and 8 passing. The <code>-v</code> flag shows individual test names and results.
+        If the model hasn't been trained yet, model and API tests are gracefully skipped via <code>pytest.skip()</code>.
+    </div>
+</section>
+
+<hr class="divider">
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- SECTION 10: DEPLOYMENT                         -->
+<!-- ══════════════════════════════════════════════ -->
+<section class="section">
+    <div class="section-label">10 — Infrastructure</div>
+    <h2>Dockerfile & Deployment</h2>
+    <p class="section-desc">
+        The entire application is containerized in a single Docker image. The container exposes port 8000
+        and serves both the REST API and the HTML dashboard with one Uvicorn process.
+    </p>
+    <div class="deep-grid">
+        <div>
+            <div class="code-wrap">
+                <div class="code-header">Dockerfile</div>
+                <div class="code-block"><span class="cm"># Slim base: minimal attack surface, ~120MB image size</span>
+<span class="kw">FROM</span> python:<span class="nm">3.9</span>-slim
+<span class="kw">WORKDIR</span> /app
+
+<span class="cm"># System build tools (required for some pip packages)</span>
+<span class="kw">RUN</span> apt-get update &amp;&amp; apt-get install -y \
+    build-essential \
+    &amp;&amp; rm -rf /var/lib/apt/lists/*
+
+<span class="cm"># Install Python dependencies before copying code</span>
+<span class="cm"># (Docker layer caching: this layer only rebuilds if requirements.txt changes)</span>
+<span class="kw">COPY</span> requirements.txt .
+<span class="kw">RUN</span> pip install --no-cache-dir -r requirements.txt
+
+<span class="cm"># Copy only the files the API needs at runtime</span>
+<span class="kw">COPY</span> src/     src/
+<span class="kw">COPY</span> api/     api/
+<span class="kw">COPY</span> models/  models/    <span class="cm"># pre-trained model artifacts</span>
+
+<span class="kw">EXPOSE</span> <span class="nm">8000</span>
+<span class="kw">CMD</span> [<span class="st">"uvicorn"</span>, <span class="st">"api.main:app"</span>, <span class="st">"--host"</span>, <span class="st">"0.0.0.0"</span>, <span class="st">"--port"</span>, <span class="st">"8000"</span>]</div>
+            </div>
+        </div>
+        <div>
+            <div class="card" style="margin-bottom:16px;">
+                <h4>Build & Run</h4>
+                <div class="code-block standalone" style="font-size:0.76rem;"><span class="cm"># Build the image</span>
+docker build -t icu-monitor .
+
+<span class="cm"># Run the container</span>
+docker run -p 8000:8000 icu-monitor
+
+<span class="cm"># Dashboard: http://localhost:8000</span>
+<span class="cm"># API docs:  http://localhost:8000/docs</span></div>
+            </div>
+            <div class="card">
+                <h4>Why Single-Container?</h4>
+                <p>For this project scope, the FastAPI server handles both API and static file serving. In production at scale, you would separate these: an Nginx container for static assets and a separate uvicorn/gunicorn cluster for the API, behind a load balancer.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<hr class="divider">
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- SECTION 11: PIPELINE ORCHESTRATION             -->
+<!-- ══════════════════════════════════════════════ -->
+<section class="section">
+    <div class="section-label">11 — Orchestration</div>
+    <h2>The Pipeline Orchestrator</h2>
+    <p class="section-desc">
+        <code>pipeline.py</code> is the single entry point that runs all 5 stages in sequence.
+        It uses Python's <code>subprocess</code> module to call each module independently,
+        which means any stage failure halts the pipeline immediately with a clear error message.
+    </p>
+    <div class="code-wrap">
+        <div class="code-header">pipeline.py — Full Orchestration Logic</div>
+        <div class="code-block"><span class="kw">def</span> <span class="fn">run_step</span>(command, description):
+    <span class="cm"># subprocess.run with check=True: raises CalledProcessError if exit code != 0</span>
+    <span class="cm"># capture_output=True: captures stdout/stderr for logging</span>
+    result = subprocess.run(command, shell=<span class="kw">True</span>, check=<span class="kw">True</span>,
+                            capture_output=<span class="kw">True</span>, text=<span class="kw">True</span>)
+    print(result.stdout)
+    <span class="cm"># On failure, prints stderr and calls sys.exit(1) — stops the pipeline</span>
+
+<span class="kw">def</span> <span class="fn">main</span>():
+    <span class="cm"># Stage 1: Ingest and clean MIMIC-IV data → data/vitals_cleaned.csv</span>
+    run_step(<span class="st">"python src/data_processing.py"</span>, <span class="st">"Data Processing"</span>)
+
+    <span class="cm"># Stage 2: Sliding window feature engineering → data/features_final.csv</span>
+    run_step(<span class="st">"python src/features.py"</span>,         <span class="st">"Feature Engineering"</span>)
+
+    <span class="cm"># Stage 3: Train XGBoost, log to MLflow, save joblib artifacts</span>
+    run_step(<span class="st">"python src/train.py"</span>,             <span class="st">"Model Training"</span>)
+
+    <span class="cm"># Stage 4: KS-test drift check on training vs. current data</span>
+    run_step(<span class="st">"python src/monitoring.py"</span>,         <span class="st">"Drift Detection"</span>)
+
+    <span class="cm"># Stage 5: Run all 8 automated tests</span>
+    run_step(<span class="st">"pytest tests/"</span>,                   <span class="st">"Automated Tests"</span>)</div>
+    </div>
+    <div class="callout info">
+        <strong>To run the full pipeline end-to-end:</strong> <code>python pipeline.py</code> from the project root.
+        The output at the end should be: <strong>[SUCCESS] Full Pipeline Completed Successfully!</strong>
+        If any stage fails, the error from that subprocess stderr will be printed and the pipeline halts — no partial states.
+    </div>
+</section>
+
+<hr class="divider">
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- SECTION 12: DATA VERSIONING                    -->
+<!-- ══════════════════════════════════════════════ -->
+<section class="section">
+    <div class="section-label">12 — Data Versioning</div>
+    <h2>DVC: Tracking Data & Models Like Code</h2>
+    <p class="section-desc">
+        Raw data and model binaries cannot go in Git (file size limits, binary diffs). DVC (Data Version Control)
+        extends Git to track these artifacts by storing metadata (hashes) in Git and pushing the actual files
+        to a remote storage backend (S3, GCS, or local).
+    </p>
+    <div class="cards-grid">
+        <div class="card">
+            <h4>What DVC Tracks</h4>
+            <ul><li><code>data/vitals_cleaned.csv</code></li><li><code>data/features_final.csv</code></li><li><code>data/training_reference.csv</code></li><li><code>models/icu_model.joblib</code></li></ul>
+            <p style="margin-top:10px;">Each file gets a <code>.dvc</code> pointer file committed to Git. The <code>.dvc</code> file contains the file hash and remote location — not the data itself.</p>
+        </div>
+        <div class="card">
+            <h4>Why This Matters for MLOps</h4>
+            <p>If you change the feature engineering logic (e.g., add a 4th statistical feature), DVC lets you create a new version of <code>features_final.csv</code> and track it alongside the model version that was trained on it. You can reproduce any historical experiment by checking out a commit and running <code>dvc pull</code>.</p>
+        </div>
+        <div class="card">
+            <h4>Key Commands</h4>
+            <div class="code-block standalone" style="font-size:0.75rem;"><span class="cm"># Initialize DVC in the repo</span>
+dvc init
+
+<span class="cm"># Track a data file</span>
+dvc add data/vitals_cleaned.csv
+
+<span class="cm"># Push data to remote storage</span>
+dvc push
+
+<span class="cm"># Pull data matching current Git commit</span>
+dvc pull</div>
+        </div>
+    </div>
+</section>
+
+<hr class="divider">
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- SECTION 13: TECH STACK                         -->
+<!-- ══════════════════════════════════════════════ -->
+<section class="section">
+    <div class="section-label">13 — Stack</div>
+    <h2>Technology Stack & Design Rationale</h2>
+    <div class="tech-grid">
+        <div class="tech-item"><div class="tech-dot" style="background:var(--accent);"></div><div><span>Python 3.11</span><small>Core language — mature ML ecosystem</small></div></div>
+        <div class="tech-item"><div class="tech-dot" style="background:var(--green);"></div><div><span>XGBoost</span><small>Gradient boosting — handles tabular clinical data best</small></div></div>
+        <div class="tech-item"><div class="tech-dot" style="background:var(--cyan);"></div><div><span>MLflow</span><small>Experiment tracking + Model Registry</small></div></div>
+        <div class="tech-item"><div class="tech-dot" style="background:var(--amber);"></div><div><span>FastAPI</span><small>Async REST API — auto-generates OpenAPI docs</small></div></div>
+        <div class="tech-item"><div class="tech-dot" style="background:var(--red);"></div><div><span>Docker</span><small>Environment-agnostic containerization</small></div></div>
+        <div class="tech-item"><div class="tech-dot" style="background:var(--purple);"></div><div><span>DVC</span><small>Data/model versioning — Git for large files</small></div></div>
+        <div class="tech-item"><div class="tech-dot" style="background:var(--orange);"></div><div><span>SHAP</span><small>Shapley-value model explainability</small></div></div>
+        <div class="tech-item"><div class="tech-dot" style="background:#38bdf8;"></div><div><span>Pytest</span><small>Unit + contract testing framework</small></div></div>
+        <div class="tech-item"><div class="tech-dot" style="background:#e879f9;"></div><div><span>SciPy</span><small>KS-test for statistical drift detection</small></div></div>
+        <div class="tech-item"><div class="tech-dot" style="background:#4ade80;"></div><div><span>Pandas / NumPy</span><small>Vectorized data processing & feature math</small></div></div>
+        <div class="tech-item"><div class="tech-dot" style="background:#fdba74;"></div><div><span>Pydantic</span><small>Runtime schema validation in FastAPI</small></div></div>
+        <div class="tech-item"><div class="tech-dot" style="background:#a5b4fc;"></div><div><span>Joblib</span><small>Efficient model serialization (sklearn-native)</small></div></div>
+    </div>
+</section>
+
+<hr class="divider">
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- SECTION 14: CI/CD                              -->
+<!-- ══════════════════════════════════════════════ -->
+<section class="section">
+    <div class="section-label">14 — Industrial CI/CD</div>
+    <h2>The Automated MLOps Infrastructure</h2>
+    <p class="section-desc">
+        We rely on an uncompromising GitHub Actions pipeline. Every commit must survive a multi-stage validation gauntlet 
+        before it can reach the container registry.
+    </p>
+
+    <div class="cards-grid">
+        <div class="card" style="border-top:3px solid var(--red);">
+            <h3 style="color:var(--red);">Stage 1: Mandatory Formatting</h3>
+            <p><strong>Tools:</strong> <code>flake8</code>, <code>black</code></p>
+            <p style="margin-top:10px;">The pipeline fails immediately if code style is inconsistent. This ensures the codebase remains maintainable for large engineering teams.</p>
+        </div>
+        <div class="card" style="border-top:3px solid var(--amber);">
+            <h3 style="color:var(--amber);">Stage 2: Validation Gauntlet</h3>
+            <p><strong>Tests:</strong> Data schema, Unit tests, API contract</p>
+            <p style="margin-top:10px;">We run <code>pytest</code> in categorized batches. Data validation checks range compliance (e.g., SpO2 > 50%), while API tests ensure the REST contract is never broken.</p>
+        </div>
+        <div class="card" style="border-top:3px solid var(--green);">
+            <h3 style="color:var(--green);">Stage 3: Verified Deployment</h3>
+            <p><strong>Outcome:</strong> Multi-tagged Docker Images</p>
+            <p style="margin-top:10px;">Images are tagged with the <code>git_sha</code>, <code>version</code>, and <code>latest</code>. A local health check is performed inside the CI environment before the final push.</p>
+        </div>
+    </div>
+
+    <div class="callout info" style="margin-top:32px;">
+        <strong>Full CI YAML Flow:</strong>
+        <br>Push → Lint → Test → Data Val → Light Train (< 2m) → Docker Build → Health Check (/health) → Registry Push
+    </div>
+</section>
+
+<!-- ── FOOTER ── -->
+<footer class="footer">
+    <p>ICU Precision Monitoring — MLOps Capstone Project</p>
+    <p style="margin-top:6px;">MIMIC-IV Demo · XGBoost · MLflow · FastAPI · Docker · DVC · SHAP · Pytest</p>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,7 @@
+pytest
+httpx
+black
+flake8
+mypy
+shap
+matplotlib
